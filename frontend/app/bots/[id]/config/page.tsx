@@ -1,0 +1,299 @@
+"use client";
+
+import { useParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import AuthGuard from "@/components/AuthGuard";
+import ConfigDiff from "@/components/ConfigDiff";
+import Navigation from "@/components/Navigation";
+import { api, getUser } from "@/lib/api";
+import { can } from "@/lib/rbac";
+import type { BotConfig, ConfigVersion, DiffEntry } from "@/lib/types";
+
+const DEFAULT_CONFIG = (botId: string): BotConfig => ({
+  bot_id: botId,
+  version: 1,
+  name: "new-config",
+  description: "",
+  strategy: { strategy_id: "trend_v1", params: { lookback: 20 } },
+  risk: {
+    max_position_notional: 5000,
+    max_total_exposure: 20000,
+    max_daily_loss: 500,
+    max_drawdown_pct: 10,
+    max_open_orders: 5,
+    kill_switch: false,
+  },
+  broker: {
+    type: "paper",
+    environment: "paper",
+    account_id: "acct-1",
+    credential_ref: "secret://paper/none",
+    symbol_namespace: "paper",
+  },
+  symbols: ["EUR/USD"],
+});
+
+export default function ConfigEditorPage() {
+  return (
+    <AuthGuard>
+      <Navigation />
+      <div className="container">
+        <ConfigEditor />
+      </div>
+    </AuthGuard>
+  );
+}
+
+function ConfigEditor() {
+  const { id } = useParams<{ id: string }>();
+  const user = getUser();
+  const [cfg, setCfg] = useState<BotConfig>(() => DEFAULT_CONFIG(id));
+  const [adapters, setAdapters] = useState<string[]>([]);
+  const [active, setActive] = useState<ConfigVersion | null>(null);
+  const [draft, setDraft] = useState<ConfigVersion | null>(null);
+  const [diff, setDiff] = useState<DiffEntry[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [a, ac] = await Promise.all([api.listAdapters(id), api.activeConfig(id)]);
+        setAdapters(a);
+        setActive(ac);
+        if (ac) setCfg({ ...ac.config, bot_id: id });
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "failed");
+      }
+    })();
+  }, [id]);
+
+  const risky = useMemo(
+    () => diff.some((c) => c.path.startsWith("broker.") || c.path.startsWith("risk.") || c.path === "strategy.strategy_id"),
+    [diff]
+  );
+
+  function flash(setter: (v: string | null) => void, text: string) {
+    setter(text);
+    setTimeout(() => setter(null), 3000);
+  }
+
+  async function saveDraft() {
+    setErr(null);
+    try {
+      const d = await api.createDraft(id, { ...cfg, bot_id: id });
+      setDraft(d);
+      flash(setMsg, `Draft #${d.version} saved`);
+    } catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
+  }
+
+  async function validate() {
+    if (!draft) return;
+    setErr(null);
+    try {
+      const d = await api.validateConfig(id, draft.version);
+      setDraft(d);
+      const res = await api.diffConfig(id, draft.version);
+      setDiff(res.changes);
+      if (d.validation_errors.length) setErr("Validation failed: " + d.validation_errors.join("; "));
+      else flash(setMsg, "Validated — ready to apply");
+    } catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
+  }
+
+  async function apply() {
+    if (!draft) return;
+    setErr(null);
+    try {
+      const d = await api.applyConfig(id, draft.version, risky ? confirmText : undefined);
+      setDraft(d);
+      setActive(d);
+      setDiff([]);
+      flash(setMsg, `Applied v${d.version}`);
+    } catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
+  }
+
+  async function requestApproval() {
+    if (!draft) return;
+    try {
+      const d = await api.requestApproval(id, draft.version);
+      setDraft(d);
+      flash(setMsg, "Approval requested");
+    } catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
+  }
+
+  return (
+    <>
+      <h1>Configuration</h1>
+      <p style={{ color: "#64748b", fontSize: 14 }}>
+        Workflow: <b>Draft → Validate → (Approve) → Apply</b>. Active config is immutable; every change creates a new version.
+      </p>
+      {active && (
+        <p style={{ fontSize: 13 }}>
+          Active: <b>v{active.version}</b> · applied {active.applied_at_ms && new Date(active.applied_at_ms).toLocaleString()}
+        </p>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Strategy</h2>
+          <label>Strategy ID</label>
+          <input value={cfg.strategy.strategy_id}
+            onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
+            style={{ width: "100%" }} />
+          <label>Parameters (JSON)</label>
+          <textarea
+            value={JSON.stringify(cfg.strategy.params, null, 2)}
+            onChange={(e) => {
+              try { setCfg({ ...cfg, strategy: { ...cfg.strategy, params: JSON.parse(e.target.value) } }); }
+              catch { /* ignore until valid */ }
+            }}
+            rows={5} style={{ width: "100%", fontFamily: "ui-monospace, Menlo, monospace" }}
+          />
+          <label>Symbols (comma-separated)</label>
+          <input value={cfg.symbols.join(",")}
+            onChange={(e) => setCfg({ ...cfg, symbols: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+            style={{ width: "100%" }} />
+        </section>
+
+        <section className="card">
+          <h2 style={{ marginTop: 0 }}>Risk limits</h2>
+          <div className="form-row">
+            <div>
+              <label>Max position notional (USD)</label>
+              <input type="number" min={1} value={cfg.risk.max_position_notional}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_position_notional: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Max total exposure (USD)</label>
+              <input type="number" min={1} value={cfg.risk.max_total_exposure}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_total_exposure: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Max daily loss (USD)</label>
+              <input type="number" min={1} value={cfg.risk.max_daily_loss}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_daily_loss: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Max drawdown (%)</label>
+              <input type="number" min={0.1} max={100} step="0.1" value={cfg.risk.max_drawdown_pct}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_drawdown_pct: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Max open orders</label>
+              <input type="number" min={1} value={cfg.risk.max_open_orders}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_open_orders: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
+                <input type="checkbox" checked={cfg.risk.kill_switch}
+                  onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, kill_switch: e.target.checked } })} />
+                Kill switch engaged
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <section className="card" style={{ gridColumn: "1 / 3" }}>
+          <h2 style={{ marginTop: 0 }}>Broker / adapter</h2>
+          <div className="form-row">
+            <div>
+              <label>Adapter</label>
+              <select value={cfg.broker.type}
+                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, type: e.target.value, symbol_namespace: e.target.value === "paper" ? "paper" : cfg.broker.symbol_namespace } })}
+                style={{ width: "100%" }}>
+                {adapters.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            <div>
+              <label>Environment</label>
+              <input value={cfg.broker.environment}
+                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, environment: e.target.value } })}
+                placeholder="paper / demo" style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Account ID</label>
+              <input value={cfg.broker.account_id}
+                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, account_id: e.target.value } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Credential reference</label>
+              <input value={cfg.broker.credential_ref}
+                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, credential_ref: e.target.value } })}
+                placeholder="secret://..." style={{ width: "100%" }} />
+              <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+                Inline secrets are rejected. Store secrets in backend secrets store.
+              </p>
+            </div>
+            <div>
+              <label>Symbol namespace</label>
+              <input value={cfg.broker.symbol_namespace}
+                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, symbol_namespace: e.target.value } })}
+                style={{ width: "100%" }} />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div style={{ marginTop: 16, display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {can(user?.role, "config:draft") && (
+          <button className="btn" onClick={saveDraft}>1. Save draft</button>
+        )}
+        <button className="btn secondary" onClick={validate} disabled={!draft}>2. Validate</button>
+        {can(user?.role, "config:draft") && (
+          <button className="btn secondary" onClick={requestApproval} disabled={!draft || draft.status !== "validated"}>
+            Request approval
+          </button>
+        )}
+        {can(user?.role, "config:apply") && (
+          <button className="btn" onClick={apply} disabled={!draft || draft.validation_errors.length > 0}>
+            3. Apply
+          </button>
+        )}
+      </div>
+
+      {err && <p className="error" style={{ marginTop: 12 }}>{err}</p>}
+      {msg && <p style={{ color: "#065f46", marginTop: 12 }}>{msg}</p>}
+
+      {draft && (
+        <div className="card" style={{ marginTop: 20 }}>
+          <h2 style={{ marginTop: 0 }}>
+            Draft #{draft.version} <span className={`pill ${draft.status}`} style={{ marginLeft: 8 }}>{draft.status}</span>
+          </h2>
+          {draft.validation_errors.length > 0 && (
+            <div className="error">
+              <b>Errors:</b>
+              <ul>{draft.validation_errors.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            </div>
+          )}
+          {draft.validation_warnings.length > 0 && (
+            <div style={{ color: "#92400e" }}>
+              <b>Warnings:</b>
+              <ul>{draft.validation_warnings.map((x, i) => <li key={i}>{x}</li>)}</ul>
+            </div>
+          )}
+          <h3>Diff vs active</h3>
+          <ConfigDiff changes={diff} />
+          {risky && (
+            <div style={{ marginTop: 12, padding: 12, background: "#fee2e2", borderRadius: 8 }}>
+              <b>This change affects risk / broker / strategy.</b> Reviewer approval is recommended.
+              If you proceed without approval, type <code>APPLY RISK CHANGE</code> to confirm:
+              <input
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                style={{ marginTop: 8, width: "100%" }}
+                placeholder="APPLY RISK CHANGE"
+              />
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}

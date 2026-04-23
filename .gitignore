@@ -1,0 +1,21 @@
+.DS_Store
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+backend/.env
+backend/.env.local
+
+# Node / Next
+frontend/node_modules/
+frontend/.next/
+frontend/.vercel/
+frontend/.env.local
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
