@@ -7,7 +7,7 @@ import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api, getUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
-import type { AuditEvent, Bot, ConfigVersion } from "@/lib/types";
+import type { AuditEvent, Bot, ConfigVersion, Order, Position } from "@/lib/types";
 
 export default function BotDetailsPage() {
   return (
@@ -26,18 +26,24 @@ function BotDetails() {
   const user = getUser();
   const [bot, setBot] = useState<Bot | null>(null);
   const [versions, setVersions] = useState<ConfigVersion[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   async function refresh() {
     try {
-      const [b, v, a] = await Promise.all([
+      const [b, v, pos, ord, a] = await Promise.all([
         api.getBot(id),
         api.listConfigs(id),
+        api.listPositions(id),
+        api.listOrders(id),
         api.listAudit(),
       ]);
       setBot(b);
       setVersions(v);
+      setPositions(pos);
+      setOrders(ord);
       setAudit(a.filter((e) => e.resource_id === id || e.resource_id.startsWith(`${id}:`)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
@@ -79,6 +85,72 @@ function BotDetails() {
           <button className="btn danger" onClick={() => act(api.stopBot)}>Stop</button>
         )}
       </div>
+
+      {positions.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Open positions</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
+                <th style={th}>Symbol</th>
+                <th style={{ ...th, textAlign: "right" }}>Qty</th>
+                <th style={{ ...th, textAlign: "right" }}>Avg price</th>
+                <th style={{ ...th, textAlign: "right" }}>Realized PnL</th>
+                <th style={th}>Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {positions.map((p) => (
+                <tr key={p.symbol} style={{ borderTop: "1px solid #e2e8f0" }}>
+                  <td style={td}><b>{p.symbol}</b></td>
+                  <td style={{ ...td, textAlign: "right" }}>{p.quantity.toLocaleString()}</td>
+                  <td style={{ ...td, textAlign: "right" }}>
+                    {p.avg_price != null ? p.avg_price.toFixed(5) : "—"}
+                  </td>
+                  <td style={{ ...td, textAlign: "right", color: p.realized_pnl >= 0 ? "#15803d" : "#b91c1c" }}>
+                    {p.realized_pnl >= 0 ? "+" : ""}{p.realized_pnl.toFixed(2)}
+                  </td>
+                  <td style={td}>{new Date(p.updated_at_ms).toLocaleTimeString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {orders.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Recent orders</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
+                <th style={th}>Symbol</th>
+                <th style={th}>Side</th>
+                <th style={th}>Type</th>
+                <th style={{ ...th, textAlign: "right" }}>Qty</th>
+                <th style={th}>Status</th>
+                <th style={th}>Reason</th>
+                <th style={th}>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.slice(0, 20).map((o) => (
+                <tr key={o.client_order_id} style={{ borderTop: "1px solid #e2e8f0" }}>
+                  <td style={td}>{o.symbol}</td>
+                  <td style={{ ...td, color: o.side === "buy" ? "#15803d" : "#b91c1c", fontWeight: 600 }}>
+                    {o.side.toUpperCase()}
+                  </td>
+                  <td style={td}>{o.order_type}</td>
+                  <td style={{ ...td, textAlign: "right" }}>{o.quantity.toLocaleString()}</td>
+                  <td style={td}><span className={`pill ${o.status}`}>{o.status}</span></td>
+                  <td style={{ ...td, fontSize: 12, color: "#64748b" }}>{o.reason ?? "—"}</td>
+                  <td style={td}>{new Date(o.submitted_at_ms).toLocaleTimeString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0 }}>Configuration versions</h2>

@@ -112,6 +112,45 @@ export interface AuditEvent {
   reason: string | null;
 }
 
+export interface Position {
+  bot_id: string;
+  symbol: string;
+  quantity: number;
+  avg_price: number | null;
+  realized_pnl: number;
+  updated_at_ms: number;
+}
+
+export interface Order {
+  client_order_id: string;
+  bot_id: string;
+  strategy_id: string;
+  config_version: number;
+  adapter_id: string;
+  symbol: string;
+  side: "buy" | "sell";
+  order_type: string;
+  quantity: number;
+  notional: number | null;
+  limit_price: number | null;
+  status: "filled" | "rejected" | "pending" | "cancelled";
+  broker_order_id: string | null;
+  reason: string | null;
+  submitted_at_ms: number;
+}
+
+export interface Fill {
+  id: string;
+  bot_id: string;
+  client_order_id: string;
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: number;
+  price: number;
+  fees: number;
+  filled_at_ms: number;
+}
+
 export type Severity = "info" | "warning" | "critical";
 export type AlertStatus = "active" | "acknowledged" | "resolved";
 

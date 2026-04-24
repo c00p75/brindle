@@ -7,6 +7,9 @@ import type {
   BotConfig,
   ConfigVersion,
   DiffEntry,
+  Fill,
+  Order,
+  Position,
   TokenResponse,
   UserPublic,
 } from "./types";
@@ -135,6 +138,15 @@ export const api = {
   },
   rollback(botId: string, toVersion: number): Promise<ConfigVersion> {
     return request(`/api/bots/${botId}/configs/rollback/${toVersion}`, { method: "POST" });
+  },
+  listPositions(botId: string): Promise<Position[]> {
+    return request(`/api/bots/${botId}/positions`);
+  },
+  listOrders(botId: string, limit = 50): Promise<Order[]> {
+    return request(`/api/bots/${botId}/orders?limit=${limit}`);
+  },
+  listFills(botId: string, limit = 50): Promise<Fill[]> {
+    return request(`/api/bots/${botId}/fills?limit=${limit}`);
   },
   listAudit(resourceId?: string): Promise<AuditEvent[]> {
     const q = resourceId ? `?resource_id=${encodeURIComponent(resourceId)}` : "";
