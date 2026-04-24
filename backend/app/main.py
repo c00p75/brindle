@@ -1,14 +1,19 @@
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.alerts.routes import router as alerts_router
 from app.audit.routes import router as audit_router
 from app.auth.routes import router as auth_router
+from app.research.routes import router as research_router
 from app.auth.service import seed_default_users
 from app.bots.routes import router as bots_router
 from app.configs.routes import router as configs_router
+from app.core.logging_config import configure_logging
+from app.core.metrics import bots_running, http_request_duration_seconds, http_requests_total
 from app.core.settings import get_settings
 from app.db.engine import init_db
 from app.runtime.manager import get_runtime_manager
@@ -16,11 +21,10 @@ from app.runtime.manager import get_runtime_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables if missing, then seed bootstrap super-admin (and optional demo users).
+    configure_logging()
     init_db()
     seed_default_users()
     yield
-    # Cancel any in-flight bot runtimes so the process can shut down cleanly.
     await get_runtime_manager().stop_all()
 
 
@@ -41,6 +45,21 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def _metrics_middleware(request: Request, call_next):
+        start = time.perf_counter()
+        response = await call_next(request)
+        duration = time.perf_counter() - start
+        # Normalise dynamic path params so cardinality stays low
+        path = request.url.path
+        http_requests_total.labels(
+            method=request.method, path=path, status=response.status_code
+        ).inc()
+        http_request_duration_seconds.labels(
+            method=request.method, path=path
+        ).observe(duration)
+        return response
+
     @app.get("/api/health", tags=["meta"])
     async def health() -> dict:
         return {
@@ -49,11 +68,18 @@ def create_app() -> FastAPI:
             "live_trading_enabled": settings.live_trading_enabled,
         }
 
+    @app.get("/metrics", tags=["meta"], include_in_schema=False)
+    async def metrics() -> Response:
+        mgr = get_runtime_manager()
+        bots_running.set(len(mgr.running_ids()))
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
     app.include_router(auth_router)
     app.include_router(bots_router)
     app.include_router(configs_router)
     app.include_router(audit_router)
     app.include_router(alerts_router)
+    app.include_router(research_router)
     return app
 
 

@@ -23,7 +23,7 @@ from app.bots.models import Bot, BotConfig
 from app.configs.service import active_version
 from app.execution.persistence import get_position_qty
 from app.execution.service import ExecutionService
-from app.marketdata.feed import SyntheticFeed
+from app.marketdata.source import build_source
 from app.risk.engine import PortfolioSnapshot, RiskEngine
 from app.strategies.base import StrategyContext
 from app.strategies.registry import create_strategy
@@ -96,9 +96,15 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     """Single bot tick loop. Runs until cancelled, fatal error, or auto-pause."""
     adapter = create_adapter(cfg.broker)
     await adapter.connect()
-    feed = SyntheticFeed(bot_id=bot.id, symbol_namespace=cfg.broker.symbol_namespace)
+
+    source = build_source(
+        bot_id=bot.id,
+        broker_type=cfg.broker.type,
+        adapter=adapter,
+        symbol_namespace=cfg.broker.symbol_namespace,
+    )
     for symbol in cfg.symbols:
-        feed.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
+        await source.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
 
     strategy = create_strategy(cfg.strategy.strategy_id)
     risk = RiskEngine(cfg.risk)
@@ -110,19 +116,38 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     )
 
     consecutive_risk_rejects = 0
-    log.info("runtime started bot=%s strategy=%s symbols=%s", bot.id, strategy.id, cfg.symbols)
+    _stale_alerted: set[str] = set()
+    log.info("runtime started bot=%s strategy=%s symbols=%s source=%s",
+             bot.id, strategy.id, cfg.symbols, type(source).__name__)
 
     try:
         while True:
             for symbol in cfg.symbols:
-                bar = feed.next_bar(symbol)
+                # Staleness guard — NOOP and alert on first detection
+                if source.is_stale(symbol):
+                    if symbol not in _stale_alerted:
+                        emit_alert(
+                            severity=Severity.WARNING,
+                            source="runtime",
+                            message=f"market data stale for {symbol} — skipping execution",
+                            bot_id=bot.id,
+                        )
+                        _stale_alerted.add(symbol)
+                        log.warning("stale data bot=%s symbol=%s", bot.id, symbol)
+                    continue
+                _stale_alerted.discard(symbol)
+
+                bar = await source.next_bar(symbol)
+                if bar is None:
+                    continue  # transient fetch failure
+
                 ctx = StrategyContext(
                     bot_id=bot.id,
                     strategy_id=strategy.id,
                     symbol=symbol,
                     config_version=cfg.version,
                     params=cfg.strategy.params,
-                    bars=feed.history(symbol),
+                    bars=source.history(symbol),
                     current_position_qty=get_position_qty(bot.id, symbol),
                     mark_price=bar.close,
                 )
@@ -130,7 +155,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 if not intents:
                     continue
 
-                portfolio = PortfolioSnapshot()  # TODO slice 6: real PnL aggregation
+                portfolio = PortfolioSnapshot()
                 for intent in intents:
                     result = await exec_svc.execute(intent, portfolio, bar.close)
                     if result.status.value == "rejected" and (result.reason or "").startswith("risk:"):

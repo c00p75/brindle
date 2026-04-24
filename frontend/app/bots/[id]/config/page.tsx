@@ -49,6 +49,7 @@ function ConfigEditor() {
   const user = getUser();
   const [cfg, setCfg] = useState<BotConfig>(() => DEFAULT_CONFIG(id));
   const [adapters, setAdapters] = useState<string[]>([]);
+  const [strategies, setStrategies] = useState<string[]>([]);
   const [active, setActive] = useState<ConfigVersion | null>(null);
   const [draft, setDraft] = useState<ConfigVersion | null>(null);
   const [diff, setDiff] = useState<DiffEntry[]>([]);
@@ -59,8 +60,9 @@ function ConfigEditor() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, ac] = await Promise.all([api.listAdapters(id), api.activeConfig(id)]);
+        const [a, s, ac] = await Promise.all([api.listAdapters(id), api.listStrategies(id), api.activeConfig(id)]);
         setAdapters(a);
+        setStrategies(s);
         setActive(ac);
         if (ac) setCfg({ ...ac.config, bot_id: id });
       } catch (e) {
@@ -137,10 +139,18 @@ function ConfigEditor() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Strategy</h2>
-          <label>Strategy ID</label>
-          <input value={cfg.strategy.strategy_id}
-            onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
-            style={{ width: "100%" }} />
+          <label>Strategy</label>
+          {strategies.length > 0 ? (
+            <select value={cfg.strategy.strategy_id}
+              onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
+              style={{ width: "100%" }}>
+              {strategies.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          ) : (
+            <input value={cfg.strategy.strategy_id}
+              onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
+              style={{ width: "100%" }} />
+          )}
           <label>Parameters (JSON)</label>
           <textarea
             value={JSON.stringify(cfg.strategy.params, null, 2)}
@@ -150,10 +160,12 @@ function ConfigEditor() {
             }}
             rows={5} style={{ width: "100%", fontFamily: "ui-monospace, Menlo, monospace" }}
           />
-          <label>Symbols (comma-separated)</label>
-          <input value={cfg.symbols.join(",")}
-            onChange={(e) => setCfg({ ...cfg, symbols: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
-            style={{ width: "100%" }} />
+          <label>Symbols</label>
+          <SymbolPicker
+            selected={cfg.symbols}
+            onChange={(syms) => setCfg({ ...cfg, symbols: syms })}
+            namespace={cfg.broker.symbol_namespace}
+          />
         </section>
 
         <section className="card">
@@ -295,5 +307,77 @@ function ConfigEditor() {
         </div>
       )}
     </>
+  );
+}
+
+const PAPER_SYMBOLS = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/GBP"];
+
+function SymbolPicker({ selected, onChange, namespace }: {
+  selected: string[];
+  onChange: (s: string[]) => void;
+  namespace: string;
+}) {
+  const [custom, setCustom] = useState("");
+  const presets = namespace === "paper" ? PAPER_SYMBOLS : [];
+
+  function toggle(sym: string) {
+    if (selected.includes(sym)) onChange(selected.filter((s) => s !== sym));
+    else onChange([...selected, sym]);
+  }
+
+  function addCustom() {
+    const sym = custom.trim().toUpperCase();
+    if (sym && !selected.includes(sym)) onChange([...selected, sym]);
+    setCustom("");
+  }
+
+  return (
+    <div>
+      {presets.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {presets.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => toggle(s)}
+              style={{
+                padding: "3px 10px", borderRadius: 12, fontSize: 12, cursor: "pointer",
+                border: selected.includes(s) ? "2px solid #3b82f6" : "1px solid #cbd5e1",
+                background: selected.includes(s) ? "#eff6ff" : "#fff",
+                color: selected.includes(s) ? "#1d4ed8" : "#334155",
+                fontWeight: selected.includes(s) ? 600 : 400,
+              }}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustom())}
+          placeholder="Add symbol (e.g. EUR/USD)"
+          style={{ flex: 1 }}
+        />
+        <button type="button" className="btn secondary" style={{ fontSize: 12 }} onClick={addCustom}>Add</button>
+      </div>
+      {selected.filter((s) => !presets.includes(s)).length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+          {selected.filter((s) => !presets.includes(s)).map((s) => (
+            <span key={s} style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
+              padding: "3px 8px", borderRadius: 12, fontSize: 12,
+              background: "#eff6ff", border: "2px solid #3b82f6", color: "#1d4ed8",
+            }}>
+              {s}
+              <button type="button" onClick={() => onChange(selected.filter((x) => x !== s))}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1, color: "#3b82f6" }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

@@ -14,7 +14,7 @@ from typing import Iterator
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, QueuePool, StaticPool
 
 _state: dict = {"engine": None, "SessionLocal": None}
 
@@ -33,11 +33,21 @@ def _build() -> tuple[Engine, sessionmaker[Session]]:
             path = Path(url.removeprefix("sqlite:///"))
             path.parent.mkdir(parents=True, exist_ok=True)
 
+    is_sqlite = url.startswith("sqlite")
+    pool_kwargs: dict = {}
+    if is_sqlite:
+        pool_kwargs["poolclass"] = StaticPool if ":memory:" in url else NullPool
+    else:
+        pool_kwargs["poolclass"] = QueuePool
+        pool_kwargs["pool_size"] = 5
+        pool_kwargs["max_overflow"] = 10
+        pool_kwargs["pool_pre_ping"] = True
+
     engine = create_engine(
         url,
         connect_args=connect_args,
         future=True,
-        pool_pre_ping=not url.startswith("sqlite"),
+        **pool_kwargs,
     )
     SessionLocal = sessionmaker(
         bind=engine, autoflush=False, expire_on_commit=False, future=True

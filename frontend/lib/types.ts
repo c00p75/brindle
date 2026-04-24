@@ -151,6 +151,33 @@ export interface Fill {
   filled_at_ms: number;
 }
 
+export interface BacktestRequest {
+  strategy_id: string;
+  params: Record<string, unknown>;
+  symbols: string[];
+  bars: number;
+  seed: string;
+  risk: Record<string, unknown>;
+  save: boolean;
+}
+
+export interface BacktestMetrics {
+  run_id: string;
+  strategy_id: string;
+  symbols: string[];
+  bars_simulated: number;
+  total_orders: number;
+  filled_orders: number;
+  rejected_orders: number;
+  total_realized_pnl: number;
+  win_trades: number;
+  loss_trades: number;
+  win_rate: number;
+  max_drawdown_pct: number;
+  sharpe_ratio: number;
+  completed_at_ms: number;
+}
+
 export type Severity = "info" | "warning" | "critical";
 export type AlertStatus = "active" | "acknowledged" | "resolved";
 

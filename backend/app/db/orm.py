@@ -24,6 +24,8 @@ class UserRow(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    totp_secret: Mapped[str | None] = mapped_column(String(64), nullable=True, default=None)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class BotRow(Base):

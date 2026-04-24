@@ -11,6 +11,7 @@ from app.adapters.brokers.base import AdapterHealth, BrokerAdapter
 from app.alerts.models import Severity
 from app.alerts.service import emit as emit_alert
 from app.audit.service import record as audit
+from app.core.metrics import orders_total, risk_rejections_total
 from app.execution.models import (
     ExecutionResult,
     ExecutionStatus,
@@ -65,11 +66,15 @@ class ExecutionService:
                 bot_id=intent.bot_id,
                 config_version=intent.config_version,
             )
+            risk_rejections_total.labels(
+                bot_id=intent.bot_id, reason=decision.reason or "unknown"
+            ).inc()
             self._persist_and_audit(intent, result)
             return result
 
         # 3) Route
         result = await self.adapter.place_order(intent)
+        orders_total.labels(bot_id=intent.bot_id, status=result.status.value).inc()
         self._persist_and_audit(intent, result)
         return result
 

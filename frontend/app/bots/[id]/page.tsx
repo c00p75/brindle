@@ -152,6 +152,28 @@ function BotDetails() {
         </div>
       )}
 
+      {versions.some((v) => v.status === "pending_approval") && can(user?.role, "config:approve") && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid #f59e0b" }}>
+          <h2 style={{ marginTop: 0, color: "#92400e" }}>Pending approval</h2>
+          {versions.filter((v) => v.status === "pending_approval").map((v) => (
+            <div key={v.version} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid #fde68a" }}>
+              <span>
+                <b>v{v.version}</b> — drafted by {v.created_by}
+              </span>
+              <button
+                className="btn"
+                onClick={async () => {
+                  try { await api.approveConfig(id, v.version); await refresh(); }
+                  catch (e) { alert(e instanceof Error ? e.message : "failed"); }
+                }}
+              >
+                Approve
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="card" style={{ marginBottom: 16 }}>
         <h2 style={{ marginTop: 0 }}>Configuration versions</h2>
         {versions.length === 0 ? (
@@ -162,6 +184,7 @@ function BotDetails() {
               <tr style={{ textAlign: "left", background: "#f8fafc" }}>
                 <th style={th}>Version</th><th style={th}>Status</th><th style={th}>By</th>
                 <th style={th}>Approved by</th><th style={th}>Applied</th>
+                {can(user?.role, "config:rollback") && <th style={th}></th>}
               </tr>
             </thead>
             <tbody>
@@ -172,6 +195,23 @@ function BotDetails() {
                   <td style={td}>{v.created_by}</td>
                   <td style={td}>{v.approved_by ?? <em style={{ color: "#94a3b8" }}>—</em>}</td>
                   <td style={td}>{v.applied_at_ms ? new Date(v.applied_at_ms).toLocaleString() : "—"}</td>
+                  {can(user?.role, "config:rollback") && (
+                    <td style={td}>
+                      {v.status === "superseded" && (
+                        <button
+                          className="btn secondary"
+                          style={{ fontSize: 12, padding: "4px 10px" }}
+                          onClick={async () => {
+                            if (!confirm(`Roll back to v${v.version}? A new draft will be created.`)) return;
+                            try { await api.rollback(id, v.version); await refresh(); }
+                            catch (e) { alert(e instanceof Error ? e.message : "failed"); }
+                          }}
+                        >
+                          Rollback
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

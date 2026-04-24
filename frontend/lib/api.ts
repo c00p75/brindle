@@ -3,6 +3,8 @@
 import type {
   Alert,
   AuditEvent,
+  BacktestMetrics,
+  BacktestRequest,
   Bot,
   BotConfig,
   ConfigVersion,
@@ -157,5 +159,14 @@ export const api = {
   },
   ackAlert(id: string): Promise<Alert> {
     return request(`/api/alerts/${id}/ack`, { method: "POST" });
+  },
+  listStrategies(botId: string): Promise<string[]> {
+    return request(`/api/bots/${botId}/configs/strategies`);
+  },
+  runBacktest(body: BacktestRequest): Promise<BacktestMetrics> {
+    return request("/api/research/backtest", { method: "POST", body: JSON.stringify(body) });
+  },
+  listBacktests(): Promise<BacktestMetrics[]> {
+    return request("/api/research/backtests");
   },
 };
