@@ -9,6 +9,9 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-please-long-random-string"
     jwt_algo: str = "HS256"
     jwt_expire_minutes: int = 60
+    super_admin_email: str = "georgecoopmsapenda@gmail.com"
+    super_admin_password: str = "John16:33"
+    seed_demo_users: bool = False
 
     # Paper-first safety locks. These must stay true/false respectively
     # and cannot be overridden from API/UI.

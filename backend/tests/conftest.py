@@ -1,7 +1,9 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 
 from app.auth.service import seed_default_users
+from app.core.settings import get_settings
 from app.db.store import get_store
 from app.main import create_app
 
@@ -9,6 +11,10 @@ from app.main import create_app
 @pytest.fixture(autouse=True)
 def reset_store():
     """Isolate each test — in-memory store state must not leak."""
+    os.environ["SUPER_ADMIN_EMAIL"] = "georgecoopmsapenda@gmail.com"
+    os.environ["SUPER_ADMIN_PASSWORD"] = "John16:33"
+    os.environ["SEED_DEMO_USERS"] = "true"
+    get_settings.cache_clear()
     store = get_store()
     store._tables.clear()
     store._lists.clear()
@@ -24,7 +30,10 @@ def client() -> TestClient:
 
 @pytest.fixture
 def admin_token(client: TestClient) -> str:
-    r = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "admin12345"})
+    r = client.post(
+        "/api/auth/login",
+        json={"email": "georgecoopmsapenda@gmail.com", "password": "John16:33"},
+    )
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
 

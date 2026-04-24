@@ -83,14 +83,15 @@ make backend
 make frontend
 ```
 
-Open <http://localhost:3000>. Dev users (seeded on boot, remove before prod):
+Open <http://localhost:3000>.
 
-| Role     | Email                    | Password        |
-|----------|--------------------------|-----------------|
-| admin    | admin@example.com        | admin12345      |
-| operator | operator@example.com     | operator12345   |
-| reviewer | reviewer@example.com     | reviewer12345   |
-| viewer   | viewer@example.com       | viewer12345     |
+Bootstrap auth account (seeded on boot):
+
+| Role        | Email                           | Password |
+|-------------|----------------------------------|----------|
+| super-admin | georgecoopmsapenda@gmail.com    | John16:33 |
+
+Optional demo users can be seeded by setting `SEED_DEMO_USERS=true`.
 
 ### Run tests
 

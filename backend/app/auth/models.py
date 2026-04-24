@@ -9,6 +9,7 @@ class User(BaseModel):
     role: Role
     password_hash: str
     is_active: bool = True
+    is_super_admin: bool = False
 
 
 class UserPublic(BaseModel):
@@ -16,6 +17,7 @@ class UserPublic(BaseModel):
     email: EmailStr
     role: Role
     is_active: bool
+    is_super_admin: bool = False
 
 
 class LoginRequest(BaseModel):

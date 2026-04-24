@@ -6,8 +6,8 @@ import { api, setSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin12345");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -48,15 +48,6 @@ export default function LoginPage() {
           {busy ? "Signing in…" : "Sign in"}
         </button>
 
-        <details style={{ marginTop: 16, fontSize: 12, color: "#64748b" }}>
-          <summary>Dev users</summary>
-          <ul>
-            <li>admin@example.com / admin12345</li>
-            <li>operator@example.com / operator12345</li>
-            <li>reviewer@example.com / reviewer12345</li>
-            <li>viewer@example.com / viewer12345</li>
-          </ul>
-        </details>
       </form>
     </div>
   );
