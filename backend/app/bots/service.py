@@ -123,8 +123,17 @@ def refresh_state_from_config(bot: Bot) -> Bot:
 def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
     if active_version(bot_id) is None:
         raise ValueError("cannot start: no applied config")
+    current = get(bot_id)
+    if current is None:
+        raise ValueError("bot not found")
+    # Ensure state reflects an applied config (DRAFT → READY) before transitioning.
+    refreshed = refresh_state_from_config(current)
     bot = _set_state(
-        bot_id, BotState.RUNNING, {BotState.READY, BotState.PAUSED, BotState.VALIDATED}
+        bot_id,
+        BotState.RUNNING,
+        {BotState.READY, BotState.PAUSED, BotState.VALIDATED, BotState.DRAFT}
+        if refreshed.active_config_version is not None
+        else {BotState.READY, BotState.PAUSED, BotState.VALIDATED},
     )
     audit(
         actor_email=actor_email,

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.adapters.brokers.registry import list_adapters
+from app.strategies.registry import list_strategies
 from app.auth.deps import require
 from app.auth.models import User
 from app.bots import service as bot_service
@@ -24,6 +25,12 @@ class ApplyBody(BaseModel):
 async def available_adapters(bot_id: str, _: User = Depends(require("config:read"))) -> list[str]:
     bot_service.get(bot_id) or _not_found()
     return list_adapters()
+
+
+@router.get("/strategies")
+async def available_strategies(bot_id: str, _: User = Depends(require("config:read"))) -> list[str]:
+    bot_service.get(bot_id) or _not_found()
+    return list_strategies()
 
 
 @router.get("")

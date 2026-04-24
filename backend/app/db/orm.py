@@ -75,6 +75,58 @@ class AuditRow(Base):
 Index("ix_audit_at_id", AuditRow.at_ms, AuditRow.id)
 
 
+class OrderRow(Base):
+    """An OrderIntent that was sent through ExecutionService.
+
+    Stores the intent + the normalized ExecutionResult. One row per attempt.
+    """
+    __tablename__ = "orders"
+
+    client_order_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    bot_id: Mapped[str] = mapped_column(String(64), index=True)
+    strategy_id: Mapped[str] = mapped_column(String(64))
+    config_version: Mapped[int] = mapped_column(Integer)
+    adapter_id: Mapped[str] = mapped_column(String(32))
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    side: Mapped[str] = mapped_column(String(8))
+    order_type: Mapped[str] = mapped_column(String(16))
+    quantity: Mapped[float | None] = mapped_column(nullable=True)
+    notional: Mapped[float | None] = mapped_column(nullable=True)
+    limit_price: Mapped[float | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(24), index=True)
+    broker_order_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reason: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    submitted_at_ms: Mapped[int] = mapped_column(BigInteger, index=True)
+    extra: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+
+
+class FillRow(Base):
+    """A fill produced by an order. One row per fill (currently 1:1 with FILLED orders)."""
+    __tablename__ = "fills"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    bot_id: Mapped[str] = mapped_column(String(64), index=True)
+    client_order_id: Mapped[str] = mapped_column(String(64), index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    side: Mapped[str] = mapped_column(String(8))
+    quantity: Mapped[float] = mapped_column()
+    price: Mapped[float] = mapped_column()
+    fees: Mapped[float] = mapped_column(default=0.0)
+    filled_at_ms: Mapped[int] = mapped_column(BigInteger, index=True)
+
+
+class PositionRow(Base):
+    """Materialized position per (bot, symbol). Updated transactionally on fill."""
+    __tablename__ = "positions"
+
+    bot_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(32), primary_key=True)
+    quantity: Mapped[float] = mapped_column(default=0.0)
+    avg_price: Mapped[float | None] = mapped_column(nullable=True)
+    realized_pnl: Mapped[float] = mapped_column(default=0.0)
+    updated_at_ms: Mapped[int] = mapped_column(BigInteger)
+
+
 class AlertRow(Base):
     __tablename__ = "alerts"
 

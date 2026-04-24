@@ -1,0 +1,175 @@
+"""Per-bot runtime: pulls market data, runs the strategy, executes intents.
+
+Lifecycle is mirrored from the bot state machine:
+- bot.start  → spawn an asyncio task
+- bot.pause  → cancel; can resume on next start
+- bot.stop   → cancel; bot must be re-started explicitly
+- bot.archive → cancel
+
+The runtime is fully async and does NOT block FastAPI's event loop.
+On adapter unhealth or repeated risk rejections, the bot is auto-paused
+and an alert is emitted.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+from dataclasses import dataclass
+
+from app.adapters.brokers.factory import create_adapter
+from app.alerts.models import Severity
+from app.alerts.service import emit as emit_alert
+from app.bots.models import Bot, BotConfig
+from app.configs.service import active_version
+from app.execution.persistence import get_position_qty
+from app.execution.service import ExecutionService
+from app.marketdata.feed import SyntheticFeed
+from app.risk.engine import PortfolioSnapshot, RiskEngine
+from app.strategies.base import StrategyContext
+from app.strategies.registry import create_strategy
+
+log = logging.getLogger("runtime")
+
+# Tunable. Kept short for snappy paper trading; real adapters would tune higher.
+TICK_INTERVAL_S = 1.0
+
+
+@dataclass
+class _Runtime:
+    bot_id: str
+    task: asyncio.Task
+
+
+class RuntimeManager:
+    """Process-local registry of running bot tasks."""
+
+    def __init__(self) -> None:
+        self._runtimes: dict[str, _Runtime] = {}
+        self._lock = asyncio.Lock()
+
+    async def start(self, bot: Bot) -> None:
+        async with self._lock:
+            if bot.id in self._runtimes and not self._runtimes[bot.id].task.done():
+                return  # already running
+            cv = active_version(bot.id)
+            if cv is None:
+                raise RuntimeError("cannot start runtime: no applied config")
+            task = asyncio.create_task(_run_bot_loop(bot, cv.config))
+            self._runtimes[bot.id] = _Runtime(bot_id=bot.id, task=task)
+
+    async def stop(self, bot_id: str) -> None:
+        async with self._lock:
+            rt = self._runtimes.pop(bot_id, None)
+        if rt is None:
+            return
+        rt.task.cancel()
+        try:
+            await rt.task
+        except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            pass
+
+    async def stop_all(self) -> None:
+        async with self._lock:
+            ids = list(self._runtimes.keys())
+        for bot_id in ids:
+            await self.stop(bot_id)
+
+    def is_running(self, bot_id: str) -> bool:
+        rt = self._runtimes.get(bot_id)
+        return rt is not None and not rt.task.done()
+
+    def running_ids(self) -> list[str]:
+        return [bid for bid, rt in self._runtimes.items() if not rt.task.done()]
+
+
+_manager: RuntimeManager | None = None
+
+
+def get_runtime_manager() -> RuntimeManager:
+    global _manager
+    if _manager is None:
+        _manager = RuntimeManager()
+    return _manager
+
+
+async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
+    """Single bot tick loop. Runs until cancelled, fatal error, or auto-pause."""
+    adapter = create_adapter(cfg.broker)
+    await adapter.connect()
+    feed = SyntheticFeed(bot_id=bot.id, symbol_namespace=cfg.broker.symbol_namespace)
+    for symbol in cfg.symbols:
+        feed.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
+
+    strategy = create_strategy(cfg.strategy.strategy_id)
+    risk = RiskEngine(cfg.risk)
+    exec_svc = ExecutionService(
+        adapter=adapter,
+        risk=risk,
+        actor_email=f"runtime/{bot.id}",
+        actor_role="system",
+    )
+
+    consecutive_risk_rejects = 0
+    log.info("runtime started bot=%s strategy=%s symbols=%s", bot.id, strategy.id, cfg.symbols)
+
+    try:
+        while True:
+            for symbol in cfg.symbols:
+                bar = feed.next_bar(symbol)
+                ctx = StrategyContext(
+                    bot_id=bot.id,
+                    strategy_id=strategy.id,
+                    symbol=symbol,
+                    config_version=cfg.version,
+                    params=cfg.strategy.params,
+                    bars=feed.history(symbol),
+                    current_position_qty=get_position_qty(bot.id, symbol),
+                    mark_price=bar.close,
+                )
+                intents = strategy.on_data(ctx)
+                if not intents:
+                    continue
+
+                portfolio = PortfolioSnapshot()  # TODO slice 6: real PnL aggregation
+                for intent in intents:
+                    result = await exec_svc.execute(intent, portfolio, bar.close)
+                    if result.status.value == "rejected" and (result.reason or "").startswith("risk:"):
+                        consecutive_risk_rejects += 1
+                    else:
+                        consecutive_risk_rejects = 0
+
+                    if consecutive_risk_rejects >= 5:
+                        emit_alert(
+                            severity=Severity.CRITICAL,
+                            source="runtime",
+                            message="auto-pausing bot after 5 consecutive risk rejections",
+                            bot_id=bot.id,
+                        )
+                        from app.bots import service as bot_service
+                        try:
+                            bot_service.pause(
+                                bot.id,
+                                actor_email="runtime",
+                                actor_role="system",
+                            )
+                        except Exception:  # noqa: BLE001
+                            pass
+                        return
+
+            await asyncio.sleep(TICK_INTERVAL_S)
+    except asyncio.CancelledError:
+        log.info("runtime cancelled bot=%s", bot.id)
+        raise
+    except Exception as e:  # noqa: BLE001
+        log.exception("runtime crashed bot=%s err=%s", bot.id, e)
+        emit_alert(
+            severity=Severity.CRITICAL,
+            source="runtime",
+            message=f"runtime crashed: {type(e).__name__}: {e}",
+            bot_id=bot.id,
+        )
+    finally:
+        try:
+            await adapter.close()
+        except Exception:  # noqa: BLE001
+            pass

@@ -37,5 +37,9 @@ def validate_bot_config(cfg: BotConfig) -> tuple[list[str], list[str]]:
 
     if not cfg.strategy.strategy_id:
         errors.append("strategy.strategy_id is required")
+    else:
+        from app.strategies.registry import is_known_strategy
+        if not is_known_strategy(cfg.strategy.strategy_id):
+            errors.append(f"unknown strategy_id: {cfg.strategy.strategy_id}")
 
     return errors, warnings

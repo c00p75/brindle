@@ -3,6 +3,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+import app.runtime.manager as _mgr_module
 from app.auth.service import seed_default_users
 from app.core.settings import get_settings
 from app.db.engine import use_test_database
@@ -19,12 +20,19 @@ def reset_store():
     use_test_database()
     seed_default_users()
     yield
+    # Reset singleton so the next test gets a fresh RuntimeManager with no
+    # stale tasks.  Lifespan shutdown already cancelled running tasks via
+    # stop_all() before control reaches here.
+    _mgr_module._manager = None
 
 
 @pytest.fixture
 def client() -> TestClient:
     app = create_app()
-    return TestClient(app)
+    # Use as context manager so the anyio portal persists across requests,
+    # which keeps asyncio.create_task() tasks alive between HTTP calls.
+    with TestClient(app) as c:
+        yield c
 
 
 @pytest.fixture

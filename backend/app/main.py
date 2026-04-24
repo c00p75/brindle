@@ -11,6 +11,7 @@ from app.bots.routes import router as bots_router
 from app.configs.routes import router as configs_router
 from app.core.settings import get_settings
 from app.db.engine import init_db
+from app.runtime.manager import get_runtime_manager
 
 
 @asynccontextmanager
@@ -19,6 +20,8 @@ async def lifespan(app: FastAPI):
     init_db()
     seed_default_users()
     yield
+    # Cancel any in-flight bot runtimes so the process can shut down cleanly.
+    await get_runtime_manager().stop_all()
 
 
 def create_app() -> FastAPI:

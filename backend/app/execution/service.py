@@ -16,6 +16,7 @@ from app.execution.models import (
     ExecutionStatus,
     OrderIntent,
 )
+from app.execution.persistence import record_attempt
 from app.risk.engine import PortfolioSnapshot, RiskEngine
 
 
@@ -44,7 +45,7 @@ class ExecutionService:
                 bot_id=intent.bot_id,
                 config_version=intent.config_version,
             )
-            self._audit(intent, result)
+            self._persist_and_audit(intent, result)
             return result
 
         # 2) Risk gate
@@ -64,13 +65,17 @@ class ExecutionService:
                 bot_id=intent.bot_id,
                 config_version=intent.config_version,
             )
-            self._audit(intent, result)
+            self._persist_and_audit(intent, result)
             return result
 
         # 3) Route
         result = await self.adapter.place_order(intent)
-        self._audit(intent, result)
+        self._persist_and_audit(intent, result)
         return result
+
+    def _persist_and_audit(self, intent: OrderIntent, result: ExecutionResult) -> None:
+        record_attempt(intent, result)
+        self._audit(intent, result)
 
     def _audit(self, intent: OrderIntent, result: ExecutionResult) -> None:
         audit(
