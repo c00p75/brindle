@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from app.adapters.brokers.base import BrokerAdapter, BrokerConfig
+from app.adapters.brokers.oanda_adapter import OandaAdapter
 from app.adapters.brokers.paper_adapter import PaperAdapter
 
 # Canonical adapter IDs. Unknown ids must fail validation.
 ADAPTER_REGISTRY: dict[str, type[BrokerAdapter]] = {
     "paper": PaperAdapter,
-    # "oanda": OandaAdapter,   # Phase 3
-    # "deriv": DerivAdapter,   # Phase 3
-    # "mt5":   MT5Adapter,     # Phase 3
+    "oanda": OandaAdapter,
+    # "deriv": DerivAdapter,   # Slice 3+
+    # "mt5":   MT5Adapter,     # Slice 3+
 }
 
 

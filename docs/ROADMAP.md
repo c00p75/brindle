@@ -35,8 +35,8 @@ Last updated: 2026-04-23
 | Frontend control | ✅ shipped (basic) | Login, dashboard, bots, config editor with live diff and typed-confirmation. |
 | Deployment       | ✅ shipped        | Droplet + Vercel. See `project_deployment` memory or commit history. |
 | **Strategy runtime** | ✅ shipped (slice 2) | trend_v1 SMA crossover. Synthetic feed. Per-bot asyncio task. Positions/orders/fills persisted + shown in UI. |
-| Real broker adapters | ⏳ slice 3   | OANDA first, then Deriv, then MT5/cTrader. |
-| Secrets resolver | ⏳ slice 4        | `secret://` references must resolve to real secrets. |
+| Real broker adapters | ✅ shipped (slice 3) | OANDA v20 REST (practice/demo). 24 mock-based tests. |
+| Secrets resolver | ✅ shipped (slice 3) | `secret://env/VAR` and `secret://paper/none`. Slice 4 adds Vault/file backends. |
 | Market data ingest | ⏳ slice 5       | Real data + staleness detection (NOOP on stale). |
 | Approvals / rollback UI | ⏳ slice 6 | Endpoints exist; UI screens missing. |
 | Positions / PnL / equity charts | ⏳ slice 6 | Dashboard currently shows counts only. |
@@ -98,7 +98,7 @@ SQLAlchemy 2 + SQLite. All services moved off the in-memory store.
 22 tests pass. Live data survives restart.
 Commit: `b6c1cc7`.
 
-### 🚧 Slice 2 — Strategy runtime
+### ✅ Slice 2 — Strategy runtime (shipped)
 **Why now:** Without this, the platform has plumbing but doesn't trade.
 
 **Scope:**
