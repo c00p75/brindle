@@ -1,42 +1,69 @@
 from __future__ import annotations
 
+from sqlalchemy import select
+
 from app.alerts.models import Alert, AlertStatus, Severity
 from app.core.ids import new_id
 from app.core.time import now_epoch_ms
-from app.db.store import get_store
+from app.db.engine import session_scope
+from app.db.orm import AlertRow
 
-TABLE = "alerts"
+
+def _row_to_alert(row: AlertRow) -> Alert:
+    return Alert(
+        id=row.id,
+        severity=Severity(row.severity),
+        status=AlertStatus(row.status),
+        source=row.source,
+        message=row.message,
+        bot_id=row.bot_id,
+        created_at_ms=row.created_at_ms,
+        acknowledged_by=row.acknowledged_by,
+        acknowledged_at_ms=row.acknowledged_at_ms,
+        metadata=row.meta_ or {},
+    )
 
 
-def emit(*, severity: Severity, source: str, message: str, bot_id: str | None = None, metadata: dict | None = None) -> Alert:
-    alert = Alert(
+def emit(
+    *,
+    severity: Severity,
+    source: str,
+    message: str,
+    bot_id: str | None = None,
+    metadata: dict | None = None,
+) -> Alert:
+    row = AlertRow(
         id=new_id("alt"),
-        severity=severity,
+        severity=severity.value,
+        status=AlertStatus.ACTIVE.value,
         source=source,
         message=message,
         bot_id=bot_id,
         created_at_ms=now_epoch_ms(),
-        metadata=metadata or {},
+        meta_=metadata or {},
     )
-    get_store().put(TABLE, alert.id, alert.model_dump())
-    return alert
+    with session_scope() as s:
+        s.add(row)
+        s.flush()
+        return _row_to_alert(row)
 
 
 def list_alerts(status: AlertStatus | None = None) -> list[Alert]:
-    raws = get_store().list(TABLE)
-    alerts = [Alert(**r) for r in raws]
-    if status:
-        alerts = [a for a in alerts if a.status == status]
-    return sorted(alerts, key=lambda a: a.created_at_ms, reverse=True)
+    with session_scope() as s:
+        stmt = select(AlertRow).order_by(AlertRow.created_at_ms.desc())
+        if status:
+            stmt = stmt.where(AlertRow.status == status.value)
+        rows = s.execute(stmt).scalars().all()
+        return [_row_to_alert(r) for r in rows]
 
 
 def acknowledge(alert_id: str, actor_email: str) -> Alert | None:
-    raw = get_store().get(TABLE, alert_id)
-    if not raw:
-        return None
-    alert = Alert(**raw)
-    alert.status = AlertStatus.ACKNOWLEDGED
-    alert.acknowledged_by = actor_email
-    alert.acknowledged_at_ms = now_epoch_ms()
-    get_store().put(TABLE, alert.id, alert.model_dump())
-    return alert
+    with session_scope() as s:
+        row = s.get(AlertRow, alert_id)
+        if row is None:
+            return None
+        row.status = AlertStatus.ACKNOWLEDGED.value
+        row.acknowledged_by = actor_email
+        row.acknowledged_at_ms = now_epoch_ms()
+        s.flush()
+        return _row_to_alert(row)

@@ -10,11 +10,13 @@ from app.auth.service import seed_default_users
 from app.bots.routes import router as bots_router
 from app.configs.routes import router as configs_router
 from app.core.settings import get_settings
+from app.db.engine import init_db
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Seed default dev users. Remove before production.
+    # Create tables if missing, then seed bootstrap super-admin (and optional demo users).
+    init_db()
     seed_default_users()
     yield
 

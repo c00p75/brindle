@@ -2,12 +2,29 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy import select
+
 from app.audit.models import AuditEvent
 from app.core.ids import new_id
 from app.core.time import now_epoch_ms
-from app.db.store import get_store
+from app.db.engine import session_scope
+from app.db.orm import AuditRow
 
-STREAM = "audit_events"
+
+def _row_to_event(row: AuditRow) -> AuditEvent:
+    return AuditEvent(
+        id=row.id,
+        actor_email=row.actor_email,
+        actor_role=row.actor_role,
+        action=row.action,
+        resource_type=row.resource_type,
+        resource_id=row.resource_id,
+        at_ms=row.at_ms,
+        diff=row.diff or [],
+        metadata=row.meta_ or {},
+        outcome=row.outcome,
+        reason=row.reason,
+    )
 
 
 def record(
@@ -22,7 +39,7 @@ def record(
     outcome: str = "ok",
     reason: str | None = None,
 ) -> AuditEvent:
-    event = AuditEvent(
+    row = AuditRow(
         id=new_id("aud"),
         actor_email=actor_email,
         actor_role=actor_role,
@@ -31,17 +48,20 @@ def record(
         resource_id=resource_id,
         at_ms=now_epoch_ms(),
         diff=diff or [],
-        metadata=metadata or {},
+        meta_=metadata or {},
         outcome=outcome,
         reason=reason,
     )
-    get_store().append(STREAM, event.model_dump())
-    return event
+    with session_scope() as s:
+        s.add(row)
+        s.flush()
+        return _row_to_event(row)
 
 
 def list_events(resource_id: str | None = None) -> list[AuditEvent]:
-    raws = get_store().stream(STREAM)
-    events = [AuditEvent(**r) for r in raws]
-    if resource_id:
-        events = [e for e in events if e.resource_id == resource_id]
-    return list(reversed(events))
+    with session_scope() as s:
+        stmt = select(AuditRow).order_by(AuditRow.at_ms.desc(), AuditRow.id.desc())
+        if resource_id:
+            stmt = stmt.where(AuditRow.resource_id == resource_id)
+        rows = s.execute(stmt).scalars().all()
+        return [_row_to_event(r) for r in rows]

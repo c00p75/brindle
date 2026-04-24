@@ -154,7 +154,6 @@ refuses to boot if `PAPER_TRADING_ONLY` is false.
 
 ## Not yet implemented (next slices)
 
-- Persistent DB (`app/db/store.py` is currently in-memory).
 - OANDA / Deriv / MT5 / cTrader adapters (paper is wired).
 - Strategy runtime loop (strategies themselves — this skeleton provides the
   plumbing from OrderIntent → ExecutionResult).
