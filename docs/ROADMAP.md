@@ -4,7 +4,7 @@ Living document. **Tool-agnostic.** Any AI assistant (Claude, Cursor, Copilot,
 Codeium, etc.) or human contributor must read this before making non-trivial
 changes. Update this file in the same PR that completes a slice.
 
-Last updated: 2026-04-24
+Last updated: 2026-04-23
 
 ---
 
@@ -34,7 +34,7 @@ Last updated: 2026-04-24
 | Persistence      | ✅ shipped (slice 1) | SQLAlchemy 2 + SQLite. `DATABASE_URL` swaps to Postgres. |
 | Frontend control | ✅ shipped (basic) | Login, dashboard, bots, config editor with live diff and typed-confirmation. |
 | Deployment       | ✅ shipped        | Droplet + Vercel. See `project_deployment` memory or commit history. |
-| **Strategy runtime** | 🚧 in progress (slice 2) | Plumbing exists; no strategies actually run. |
+| **Strategy runtime** | ✅ shipped (slice 2) | trend_v1 SMA crossover. Synthetic feed. Per-bot asyncio task. Positions/orders/fills persisted + shown in UI. |
 | Real broker adapters | ⏳ slice 3   | OANDA first, then Deriv, then MT5/cTrader. |
 | Secrets resolver | ⏳ slice 4        | `secret://` references must resolve to real secrets. |
 | Market data ingest | ⏳ slice 5       | Real data + staleness detection (NOOP on stale). |
