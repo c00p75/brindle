@@ -9,40 +9,50 @@ function isRisky(path: string): boolean {
 }
 
 export default function ConfigDiff({ changes }: { changes: DiffEntry[] }) {
-  if (changes.length === 0) return <p style={{ color: "#64748b" }}>No changes.</p>;
+  if (changes.length === 0) {
+    return (
+      <p style={{ color: "#94a3b8", fontSize: 14, padding: "8px 0" }}>No changes vs active config.</p>
+    );
+  }
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-      <thead>
-        <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-          <th style={th}>Path</th>
-          <th style={th}>Before</th>
-          <th style={th}>After</th>
-        </tr>
-      </thead>
-      <tbody>
-        {changes.map((c) => (
-          <tr key={c.path} style={{ borderTop: "1px solid #e2e8f0" }}>
-            <td style={td}>
-              <code>{c.path}</code>
-              {isRisky(c.path) && (
-                <span style={{ marginLeft: 8, color: "#b91c1c", fontSize: 11 }}>(risky)</span>
-              )}
-            </td>
-            <td style={{ ...td, color: "#b91c1c" }}>{format(c.before)}</td>
-            <td style={{ ...td, color: "#065f46" }}>{format(c.after)}</td>
+    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid #e8edf3" }}>
+      <table style={{ fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ width: "30%" }}>Field</th>
+            <th>Before</th>
+            <th>After</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {changes.map((c) => (
+            <tr key={c.path}>
+              <td>
+                <code style={{ fontSize: 12 }}>{c.path}</code>
+                {isRisky(c.path) && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: "0.05em",
+                    background: "#fff1f2", color: "#be123c", padding: "2px 6px", borderRadius: 4,
+                    textTransform: "uppercase",
+                  }}>
+                    risky
+                  </span>
+                )}
+              </td>
+              <td style={{ color: "#be123c" }}>{format(c.before)}</td>
+              <td style={{ color: "#15803d" }}>{format(c.after)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function format(v: unknown) {
   if (v === undefined) return <em style={{ color: "#94a3b8" }}>—</em>;
   if (v === null) return <em style={{ color: "#94a3b8" }}>null</em>;
-  if (typeof v === "object") return <code>{JSON.stringify(v)}</code>;
-  return String(v);
+  if (typeof v === "object") return <code style={{ fontSize: 11 }}>{JSON.stringify(v)}</code>;
+  if (typeof v === "boolean") return <code style={{ fontSize: 12 }}>{String(v)}</code>;
+  return <span style={{ fontWeight: 500 }}>{String(v)}</span>;
 }
-
-const th: React.CSSProperties = { padding: "8px 10px", fontWeight: 600 };
-const td: React.CSSProperties = { padding: "8px 10px", verticalAlign: "top" };

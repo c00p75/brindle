@@ -5,6 +5,12 @@ export interface UserPublic {
   email: string;
   role: Role;
   is_active: boolean;
+  totp_enabled: boolean;
+}
+
+export interface TOTPSetupResponse {
+  secret: string;
+  provisioning_uri: string;
 }
 
 export interface TokenResponse {

@@ -12,6 +12,7 @@ import type {
   Fill,
   Order,
   Position,
+  TOTPSetupResponse,
   TokenResponse,
   UserPublic,
 } from "./types";
@@ -75,10 +76,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  login(email: string, password: string): Promise<TokenResponse> {
+  login(email: string, password: string, totp_code?: string): Promise<TokenResponse> {
     return request("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, ...(totp_code ? { totp_code } : {}) }),
     });
   },
   me(): Promise<UserPublic> {
@@ -168,5 +169,20 @@ export const api = {
   },
   listBacktests(): Promise<BacktestMetrics[]> {
     return request("/api/research/backtests");
+  },
+  totpSetup(): Promise<TOTPSetupResponse> {
+    return request("/api/auth/totp/setup", { method: "POST" });
+  },
+  totpVerify(code: string): Promise<{ totp_enabled: boolean }> {
+    return request("/api/auth/totp/verify", { method: "POST", body: JSON.stringify({ code }) });
+  },
+  totpDisable(): Promise<{ totp_enabled: boolean }> {
+    return request("/api/auth/totp", { method: "DELETE" });
+  },
+  forgotPassword(email: string): Promise<{ detail: string }> {
+    return request("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+  },
+  resetPassword(token: string, new_password: string): Promise<{ detail: string }> {
+    return request("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password }) });
   },
 };

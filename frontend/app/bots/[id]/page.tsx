@@ -7,7 +7,7 @@ import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api, getUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
-import type { AuditEvent, Bot, ConfigVersion, Order, Position } from "@/lib/types";
+import type { AuditEvent, Bot, ConfigVersion, Fill, Order, Position } from "@/lib/types";
 
 export default function BotDetailsPage() {
   return (
@@ -28,22 +28,25 @@ function BotDetails() {
   const [versions, setVersions] = useState<ConfigVersion[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [fills, setFills] = useState<Fill[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   async function refresh() {
     try {
-      const [b, v, pos, ord, a] = await Promise.all([
+      const [b, v, pos, ord, fl, a] = await Promise.all([
         api.getBot(id),
         api.listConfigs(id),
         api.listPositions(id),
         api.listOrders(id),
+        api.listFills(id),
         api.listAudit(),
       ]);
       setBot(b);
       setVersions(v);
       setPositions(pos);
       setOrders(ord);
+      setFills(fl);
       setAudit(a.filter((e) => e.resource_id === id || e.resource_id.startsWith(`${id}:`)));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
@@ -115,6 +118,13 @@ function BotDetails() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {fills.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h2 style={{ marginTop: 0 }}>Equity curve (cumulative realized PnL)</h2>
+          <EquityChart fills={fills} />
         </div>
       )}
 
@@ -236,6 +246,43 @@ function BotDetails() {
         )}
       </div>
     </>
+  );
+}
+
+function EquityChart({ fills }: { fills: Fill[] }) {
+  const sorted = [...fills].sort((a, b) => a.filled_at_ms - b.filled_at_ms);
+  const points: number[] = [0];
+  let cum = 0;
+  for (const f of sorted) {
+    cum += f.side === "sell" ? f.quantity * f.price - f.fees : -(f.quantity * f.price + f.fees);
+    points.push(cum);
+  }
+
+  const W = 600, H = 120, PAD = 8;
+  const minY = Math.min(...points);
+  const maxY = Math.max(...points);
+  const rangeY = maxY - minY || 1;
+  const toX = (i: number) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  const toY = (v: number) => H - PAD - ((v - minY) / rangeY) * (H - PAD * 2);
+  const polyline = points.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
+  const zeroY = toY(0).toFixed(1);
+  const lastPnl = points[points.length - 1];
+  const color = lastPnl >= 0 ? "#15803d" : "#b91c1c";
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }}>
+        <line x1={PAD} y1={zeroY} x2={W - PAD} y2={zeroY} stroke="#e2e8f0" strokeWidth={1} />
+        <polyline points={polyline} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+        <circle cx={toX(points.length - 1)} cy={toY(lastPnl)} r={4} fill={color} />
+      </svg>
+      <p style={{ fontSize: 13, color: "#64748b", margin: "4px 0 0" }}>
+        {fills.length} fill{fills.length !== 1 ? "s" : ""} · final PnL{" "}
+        <span style={{ fontWeight: 700, color }}>
+          {lastPnl >= 0 ? "+" : ""}{lastPnl.toFixed(2)}
+        </span>
+      </p>
+    </div>
   );
 }
 

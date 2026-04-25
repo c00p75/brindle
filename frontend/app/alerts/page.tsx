@@ -34,32 +34,63 @@ function Alerts() {
     catch (e) { alert(e instanceof Error ? e.message : "failed"); }
   }
 
+  const active = alerts.filter((a) => a.status === "active").length;
+  const critical = alerts.filter((a) => a.severity === "critical" && a.status === "active").length;
+
   return (
     <>
-      <h1>Alerts & incidents</h1>
-      {err && <p className="error">{err}</p>}
-      <div className="card">
+      <div className="section-header">
+        <div>
+          <h1 style={{ marginBottom: 4 }}>Alerts &amp; incidents</h1>
+          <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
+            {alerts.length} total · {active} active{critical > 0 ? ` · ${critical} critical` : ""}
+          </p>
+        </div>
+      </div>
+
+      {err && <p className="error" style={{ marginBottom: 16 }}>{err}</p>}
+
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {alerts.length === 0 ? (
-          <p>No alerts. System is quiet.</p>
+          <div style={{ padding: "56px 24px", textAlign: "center" }}>
+            <div style={{ width: 48, height: 48, borderRadius: 14, background: "#f0fdfa", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                <path d="M5 13l4 4L19 7" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <p style={{ color: "#64748b", fontSize: 15 }}>No alerts. System is quiet.</p>
+          </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <table>
             <thead>
-              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-                <th style={th}>When</th><th style={th}>Severity</th><th style={th}>Source</th>
-                <th style={th}>Message</th><th style={th}>Status</th><th style={th}></th>
+              <tr>
+                <th>When</th>
+                <th>Severity</th>
+                <th>Source</th>
+                <th>Message</th>
+                <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {alerts.map((a) => (
-                <tr key={a.id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                  <td style={td}>{new Date(a.created_at_ms).toLocaleString()}</td>
-                  <td style={td}><span className={`pill ${a.severity}`}>{a.severity}</span></td>
-                  <td style={td}>{a.source}</td>
-                  <td style={td}>{a.message}</td>
-                  <td style={td}><span className={`pill ${a.status}`}>{a.status}</span></td>
-                  <td style={td}>
+                <tr key={a.id}>
+                  <td style={{ color: "#94a3b8", whiteSpace: "nowrap", fontSize: 13 }}>
+                    {new Date(a.created_at_ms).toLocaleString()}
+                  </td>
+                  <td><span className={`pill ${a.severity}`}>{a.severity}</span></td>
+                  <td style={{ color: "#475569", fontWeight: 500 }}>{a.source}</td>
+                  <td style={{ maxWidth: 400, color: "#334155" }}>{a.message}</td>
+                  <td><span className={`pill ${a.status}`}>{a.status}</span></td>
+                  <td>
                     {a.status === "active" && can(user?.role, "alert:ack") && (
-                      <button className="btn secondary" onClick={() => ack(a.id)}>Acknowledge</button>
+                      <button
+                        className="btn secondary"
+                        style={{ fontSize: 13, padding: "6px 12px" }}
+                        onClick={() => ack(a.id)}
+                      >
+                        Acknowledge
+                      </button>
                     )}
                   </td>
                 </tr>
@@ -71,6 +102,3 @@ function Alerts() {
     </>
   );
 }
-
-const th: React.CSSProperties = { padding: "10px 12px", fontWeight: 600, fontSize: 13 };
-const td: React.CSSProperties = { padding: "10px 12px", verticalAlign: "top" };

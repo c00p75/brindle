@@ -4,7 +4,7 @@ Living document. **Tool-agnostic.** Any AI assistant (Claude, Cursor, Copilot,
 Codeium, etc.) or human contributor must read this before making non-trivial
 changes. Update this file in the same PR that completes a slice.
 
-Last updated: 2026-04-23
+Last updated: 2026-04-25
 
 ---
 
@@ -37,11 +37,12 @@ Last updated: 2026-04-23
 | **Strategy runtime** | ✅ shipped (slice 2) | trend_v1 SMA crossover. Synthetic feed. Per-bot asyncio task. Positions/orders/fills persisted + shown in UI. |
 | Real broker adapters | ✅ shipped (slice 3) | OANDA v20 REST (practice/demo). 24 mock-based tests. |
 | Secrets resolver | ✅ shipped (slice 3) | `secret://env/VAR` and `secret://paper/none`. Slice 4 adds Vault/file backends. |
-| Market data ingest | ⏳ slice 5       | Real data + staleness detection (NOOP on stale). |
-| Approvals / rollback UI | ⏳ slice 6 | Endpoints exist; UI screens missing. |
-| Positions / PnL / equity charts | ⏳ slice 6 | Dashboard currently shows counts only. |
-| MFA / password reset / OAuth | ⏳ slice 7 | Currently password-only. |
-| Replay / backtest runner | ⏳ slice 8 | `experiments/<run_id>/` artefact pipeline. |
+| Market data ingest | ✅ shipped (slice 5) | SyntheticSource + LiveAdapterSource. MarketDataSource protocol. Staleness NOOP + alert. |
+| Approvals / rollback UI | ✅ shipped (slice 6) | Approve button, rollback button, pending-approvals amber panel. |
+| Positions / PnL / equity charts | ✅ shipped (slice 6) | Equity curve (SVG sparkline) + fills table on bot details. |
+| Strategy dropdown + symbol picker | ✅ shipped (slice 6) | Chip picker for paper FX pairs + custom entry. |
+| MFA / password reset | ✅ shipped (slice 7) | TOTP setup/verify/disable on Profile page. Forgot/reset password flow. |
+| Replay / backtest runner | ✅ shipped (slice 8) | Research page: runner UI, metrics grid, past-runs table. Backend runner saves to `experiments/`. |
 | Observability    | ⏳ slice 9        | Structured logs, metrics, traces. |
 | Postgres + Alembic migrations | ⏳ slice 10 | SQLite is fine for now; Postgres for HA. |
 
@@ -128,7 +129,7 @@ Commit: `b6c1cc7`.
 - Tests: strategy unit, runtime lifecycle, fill persistence.
 - 25+ tests pass.
 
-### ⏳ Slice 3 — OANDA adapter
+### ✅ Slice 3 — OANDA adapter (shipped)
 **Why:** Spec says OANDA first because its order model is closest to ours.
 
 **Scope:**
@@ -147,7 +148,7 @@ Commit: `b6c1cc7`.
 - All adapter tests pass without network.
 - Audit records include `adapter_id=oanda` on every execution attempt.
 
-### ⏳ Slice 4 — Secrets resolver
+### ✅ Slice 4 — Secrets resolver (shipped)
 **Why:** `credential_ref: secret://...` must resolve to actual creds.
 
 **Scope:**
@@ -166,7 +167,7 @@ Commit: `b6c1cc7`.
 - Rotating a secret + adapter restart picks up the new value with no
   code change.
 
-### ⏳ Slice 5 — Market data + staleness detection
+### ✅ Slice 5 — Market data + staleness detection (shipped)
 **Why:** Strategies need real data; staleness must NOOP per spec.
 
 **Scope:**
@@ -182,7 +183,7 @@ Commit: `b6c1cc7`.
 - Recovery from stale → fresh resumes execution.
 - Alert emitted on first stale detection per bot per symbol.
 
-### ⏳ Slice 6 — UI completeness
+### ✅ Slice 6 — UI completeness (shipped)
 **Why:** Several backend endpoints lack UI counterparts.
 
 **Scope:**
@@ -197,7 +198,7 @@ Commit: `b6c1cc7`.
 - A non-developer can complete every workflow from the docs without
   touching the API directly.
 
-### ⏳ Slice 7 — Auth hardening
+### ✅ Slice 7 — Auth hardening (shipped)
 **Why:** Currently password-only.
 
 **Scope:**
@@ -212,7 +213,7 @@ Commit: `b6c1cc7`.
 - MFA can be enabled per user; login requires the second factor when
   set.
 
-### ⏳ Slice 8 — Replay / backtest runner
+### ✅ Slice 8 — Replay / backtest runner (shipped)
 **Why:** Spec mandates an experiment-log + metrics pipeline.
 
 **Scope:**
@@ -316,6 +317,9 @@ Production URLs and ops procedures are documented in
 
 ## Changelog
 
+- **2026-04-25** — Slices 3–8 marked shipped. TOTP profile UI, password
+  reset flow, equity curve chart, symbol picker, strategy dropdown,
+  approvals/rollback UI, and research backtest runner all live.
 - **2026-04-24** — Slice 1 shipped (persistence). Roadmap created.
   Persistence-layer caveat removed from README.
 - **2026-04-23** — Slice 0 shipped (skeleton). Initial deployment to
