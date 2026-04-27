@@ -9,13 +9,18 @@ from app.core.settings import get_settings
 from app.db.engine import use_test_database
 from app.main import create_app
 
+_TEST_ADMIN_EMAIL = "admin@test.example"
+_TEST_ADMIN_PASSWORD = "test-admin-password-1"
+_TEST_DEMO_PASSWORD = "test-demo-password-1"
+
 
 @pytest.fixture(autouse=True)
 def reset_store():
     """Isolate each test — in-memory SQLite + seeded users per test."""
-    os.environ["SUPER_ADMIN_EMAIL"] = "georgecoopmsapenda@gmail.com"
-    os.environ["SUPER_ADMIN_PASSWORD"] = "John16:33"
+    os.environ["SUPER_ADMIN_EMAIL"] = _TEST_ADMIN_EMAIL
+    os.environ["SUPER_ADMIN_PASSWORD"] = _TEST_ADMIN_PASSWORD
     os.environ["SEED_DEMO_USERS"] = "true"
+    os.environ["SEED_DEMO_PASSWORD"] = _TEST_DEMO_PASSWORD
     get_settings.cache_clear()
     use_test_database()
     seed_default_users()
@@ -39,7 +44,7 @@ def client() -> TestClient:
 def admin_token(client: TestClient) -> str:
     r = client.post(
         "/api/auth/login",
-        json={"email": "georgecoopmsapenda@gmail.com", "password": "John16:33"},
+        json={"email": _TEST_ADMIN_EMAIL, "password": _TEST_ADMIN_PASSWORD},
     )
     assert r.status_code == 200, r.text
     return r.json()["access_token"]
@@ -49,7 +54,7 @@ def admin_token(client: TestClient) -> str:
 def reviewer_token(client: TestClient) -> str:
     r = client.post(
         "/api/auth/login",
-        json={"email": "reviewer@example.com", "password": "reviewer12345"},
+        json={"email": "reviewer@example.com", "password": _TEST_DEMO_PASSWORD},
     )
     assert r.status_code == 200, r.text
     return r.json()["access_token"]

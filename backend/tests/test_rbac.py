@@ -1,8 +1,8 @@
-from tests.conftest import auth_headers
+from tests.conftest import _TEST_DEMO_PASSWORD, auth_headers
 
 
 def test_viewer_cannot_create_bot(client):
-    r = client.post("/api/auth/login", json={"email": "viewer@example.com", "password": "viewer12345"})
+    r = client.post("/api/auth/login", json={"email": "viewer@example.com", "password": _TEST_DEMO_PASSWORD})
     token = r.json()["access_token"]
     r = client.post("/api/bots", json={"name": "x"}, headers=auth_headers(token))
     assert r.status_code == 403
@@ -13,7 +13,7 @@ def test_operator_can_start_but_not_create(client, admin_token):
     r = client.post("/api/bots", json={"name": "ops"}, headers=auth_headers(admin_token))
     bot_id = r.json()["id"]
 
-    r = client.post("/api/auth/login", json={"email": "operator@example.com", "password": "operator12345"})
+    r = client.post("/api/auth/login", json={"email": "operator@example.com", "password": _TEST_DEMO_PASSWORD})
     op_token = r.json()["access_token"]
 
     r = client.post("/api/bots", json={"name": "nope"}, headers=auth_headers(op_token))
