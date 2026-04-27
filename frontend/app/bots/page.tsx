@@ -35,36 +35,35 @@ function BotsList() {
     catch (e) { alert(e instanceof Error ? e.message : "failed"); }
   }
 
+  const running = bots.filter((b) => b.state === "running").length;
+
   return (
     <>
       <div className="section-header">
         <div>
-          <h1 style={{ marginBottom: 4 }}>Bots</h1>
-          <p style={{ fontSize: 14, color: "#64748b", margin: 0 }}>
-            {bots.length} bot{bots.length !== 1 ? "s" : ""} ·{" "}
-            {bots.filter((b) => b.state === "running").length} running
+          <h1 style={{ marginBottom: 2 }}>Bots</h1>
+          <p style={{ fontSize: 13, color: "#aaaaaa" }}>
+            {bots.length} configured · {running} running
           </p>
         </div>
         {can(user?.role, "bot:create") && (
-          <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>
-            + New bot
-          </Link>
+          <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>+ New bot</Link>
         )}
       </div>
 
       {err && <p className="error" style={{ marginBottom: 16 }}>{err}</p>}
 
       {bots.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "56px 24px" }}>
-          <div style={{ width: 48, height: 48, borderRadius: 14, background: "#f0fdfa", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
-              <rect x="4" y="9" width="16" height="12" rx="3" stroke="#0d9488" strokeWidth="1.5"/>
-              <path d="M9 9V7a3 3 0 116 0v2" stroke="#0d9488" strokeWidth="1.5"/>
-              <circle cx="9" cy="15" r="1.5" fill="#0d9488"/>
-              <circle cx="15" cy="15" r="1.5" fill="#0d9488"/>
+        <div className="card" style={{ textAlign: "center", padding: "64px 24px" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 8, background: "#fff5f5", border: "1px solid #ffd0d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+            <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
+              <rect x="5" y="10" width="18" height="14" rx="3" stroke="#ff444f" strokeWidth="1.5"/>
+              <path d="M10 10V8a4 4 0 018 0v2" stroke="#ff444f" strokeWidth="1.5"/>
+              <circle cx="10.5" cy="17" r="1.5" fill="#ff444f"/>
+              <circle cx="17.5" cy="17" r="1.5" fill="#ff444f"/>
             </svg>
           </div>
-          <p style={{ color: "#64748b", fontSize: 15, marginBottom: 16 }}>No bots yet. Create one to get started.</p>
+          <p style={{ color: "#686868", fontSize: 15, marginBottom: 20, fontWeight: 600 }}>No bots configured yet</p>
           {can(user?.role, "bot:create") && (
             <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>+ New bot</Link>
           )}
@@ -74,12 +73,12 @@ function BotsList() {
           <table>
             <thead>
               <tr>
-                <th>Name</th>
+                <th>Bot</th>
                 <th>State</th>
                 <th>Active config</th>
                 <th>Owner</th>
                 <th>Last updated</th>
-                <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -87,56 +86,49 @@ function BotsList() {
                 <tr key={b.id}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{
-                        width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-                        background: b.state === "running" ? "#0d9488" : b.state === "error" || b.state === "halted" ? "#be123c" : "#94a3b8",
-                        boxShadow: b.state === "running" ? "0 0 0 3px rgba(13,148,136,0.18)" : "none",
+                      <span style={{
+                        width: 7, height: 7, borderRadius: "50%", flexShrink: 0, display: "inline-block",
+                        background: b.state === "running" ? "#008265" : b.state === "error" || b.state === "halted" ? "#cc2626" : "#d6dadc",
+                        boxShadow: b.state === "running" ? "0 0 0 3px rgba(0,130,101,0.15)" : "none",
                       }} />
-                      <Link href={`/bots/${b.id}`} style={{ fontWeight: 600, color: "#0f172a", textDecoration: "none" }}>
-                        {b.name}
-                      </Link>
-                    </div>
-                    <div style={{ fontSize: 12, color: "#94a3b8", marginLeft: 18, marginTop: 2, fontFamily: "ui-monospace, monospace" }}>
-                      {b.id}
+                      <div>
+                        <Link href={`/bots/${b.id}`} style={{ fontWeight: 700, color: "#0e0e0e", display: "block" }}>
+                          {b.name}
+                        </Link>
+                        <span style={{ fontSize: 11, color: "#d6dadc", fontFamily: "monospace" }}>{b.id}</span>
+                      </div>
                     </div>
                   </td>
                   <td><span className={`pill ${b.state}`}>{b.state}</span></td>
                   <td>
                     {b.active_config_version
-                      ? <span style={{ background: "#f0fdfa", color: "#0f766e", padding: "3px 10px", borderRadius: 6, fontSize: 13, fontWeight: 600 }}>v{b.active_config_version}</span>
-                      : <span style={{ color: "#94a3b8", fontSize: 13 }}>—</span>
+                      ? <span style={{ background: "#f2f3f4", color: "#555", padding: "3px 8px", borderRadius: 3, fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}>
+                          v{b.active_config_version}
+                        </span>
+                      : <span style={{ color: "#d6dadc" }}>—</span>
                     }
                   </td>
-                  <td style={{ color: "#64748b", fontSize: 13 }}>{b.owner_email}</td>
-                  <td style={{ color: "#94a3b8", fontSize: 13 }}>{new Date(b.updated_at_ms).toLocaleString()}</td>
+                  <td style={{ color: "#686868", fontSize: 13 }}>{b.owner_email}</td>
+                  <td style={{ color: "#aaaaaa", fontSize: 12 }}>{new Date(b.updated_at_ms).toLocaleString()}</td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
                       {can(user?.role, "config:draft") && (
-                        <Link
-                          href={`/bots/${b.id}/config`}
-                          className="btn secondary"
-                          style={{ textDecoration: "none", fontSize: 13, padding: "6px 12px" }}
-                        >
+                        <Link href={`/bots/${b.id}/config`} className="btn ghost"
+                          style={{ textDecoration: "none", fontSize: 12, padding: "5px 10px" }}>
                           Config
                         </Link>
                       )}
                       {can(user?.role, "bot:start") && b.state !== "running" && b.active_config_version && (
-                        <button className="btn secondary" style={{ fontSize: 13, padding: "6px 12px" }}
-                          onClick={() => action(b.id, api.startBot)}>
-                          Start
-                        </button>
+                        <button className="btn secondary" style={{ fontSize: 12, padding: "5px 10px" }}
+                          onClick={() => action(b.id, api.startBot)}>Start</button>
                       )}
                       {can(user?.role, "bot:stop") && b.state === "running" && (
-                        <button className="btn secondary" style={{ fontSize: 13, padding: "6px 12px" }}
-                          onClick={() => action(b.id, api.pauseBot)}>
-                          Pause
-                        </button>
+                        <button className="btn ghost" style={{ fontSize: 12, padding: "5px 10px" }}
+                          onClick={() => action(b.id, api.pauseBot)}>Pause</button>
                       )}
                       {can(user?.role, "bot:stop") && (b.state === "running" || b.state === "paused") && (
-                        <button className="btn danger" style={{ fontSize: 13, padding: "6px 12px" }}
-                          onClick={() => action(b.id, api.stopBot)}>
-                          Stop
-                        </button>
+                        <button className="btn danger" style={{ fontSize: 12, padding: "5px 10px" }}
+                          onClick={() => action(b.id, api.stopBot)}>Stop</button>
                       )}
                     </div>
                   </td>

@@ -40,3 +40,9 @@ audit_events_total = Counter(
     "Audit events recorded",
     ["action"],
 )
+
+backtest_runs_total = Counter(
+    "tradingbot_backtest_runs_total",
+    "Backtest runs completed",
+    ["strategy_id", "outcome"],
+)

@@ -165,11 +165,11 @@ def seed_default_users() -> None:
             return
 
         defaults = [
-            ("operator@example.com", "operator12345", Role.OPERATOR),
-            ("reviewer@example.com", "reviewer12345", Role.REVIEWER),
-            ("viewer@example.com", "viewer12345", Role.VIEWER),
+            ("operator@example.com", Role.OPERATOR),
+            ("reviewer@example.com", Role.REVIEWER),
+            ("viewer@example.com", Role.VIEWER),
         ]
-        for email, password, role in defaults:
+        for email, role in defaults:
             email_lc = email.lower()
             existing = s.execute(
                 select(UserRow).where(UserRow.email == email_lc)
@@ -181,7 +181,7 @@ def seed_default_users() -> None:
                     id=new_id("usr"),
                     email=email_lc,
                     role=role.value,
-                    password_hash=hash_password(password),
+                    password_hash=hash_password(settings.seed_demo_password),
                     is_active=True,
                     is_super_admin=False,
                 )

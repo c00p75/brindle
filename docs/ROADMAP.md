@@ -4,7 +4,7 @@ Living document. **Tool-agnostic.** Any AI assistant (Claude, Cursor, Copilot,
 Codeium, etc.) or human contributor must read this before making non-trivial
 changes. Update this file in the same PR that completes a slice.
 
-Last updated: 2026-04-25
+Last updated: 2026-04-27
 
 ---
 
@@ -43,8 +43,8 @@ Last updated: 2026-04-25
 | Strategy dropdown + symbol picker | ✅ shipped (slice 6) | Chip picker for paper FX pairs + custom entry. |
 | MFA / password reset | ✅ shipped (slice 7) | TOTP setup/verify/disable on Profile page. Forgot/reset password flow. |
 | Replay / backtest runner | ✅ shipped (slice 8) | Research page: runner UI, metrics grid, past-runs table. Backend runner saves to `experiments/`. |
-| Observability    | ⏳ slice 9        | Structured logs, metrics, traces. |
-| Postgres + Alembic migrations | ⏳ slice 10 | SQLite is fine for now; Postgres for HA. |
+| Observability    | ✅ shipped (slice 9) | Structured JSON logs, Prometheus metrics fully wired, RUNBOOK.md. |
+| Postgres + Alembic migrations | ✅ shipped (slice 10) | Alembic migration tree, `DATABASE_URL` env selects SQLite or Postgres. |
 
 ---
 
@@ -230,7 +230,7 @@ Commit: `b6c1cc7`.
 - The append-only `EXPERIMENT_LOG.md` workflow from the spec is
   enforceable (validation rejects runs without metrics.json).
 
-### ⏳ Slice 9 — Observability
+### ✅ Slice 9 — Observability (shipped)
 **Why:** Spec has a whole observability doc not yet wired.
 
 **Scope:**
@@ -245,7 +245,7 @@ Commit: `b6c1cc7`.
 - Risk rejection rate is queryable from a Grafana panel.
 - Logs are parseable as JSON; no f-string log statements.
 
-### ⏳ Slice 10 — Postgres + Alembic
+### ✅ Slice 10 — Postgres + Alembic (shipped)
 **Why:** SQLite is fine for low-traffic single-node; Postgres for HA.
 
 **Scope:**
@@ -317,6 +317,11 @@ Production URLs and ops procedures are documented in
 
 ## Changelog
 
+- **2026-04-27** — Slices 9–10 shipped. Production hardening: JWT-secret boot
+  guard, rate limits on TOTP/forgot-password, pinned all deps, demo passwords
+  moved to `SEED_DEMO_PASSWORD` env var. Prometheus metrics fully wired
+  (audit_events_total, backtest_runs_total). RUNBOOK.md added. Alembic.ini
+  updated with DATABASE_URL guidance.
 - **2026-04-25** — Slices 3–8 marked shipped. TOTP profile UI, password
   reset flow, equity curve chart, symbol picker, strategy dropdown,
   approvals/rollback UI, and research backtest runner all live.

@@ -40,6 +40,7 @@ from typing import Any
 import yaml
 
 from app.core.ids import new_id
+from app.core.metrics import backtest_runs_total
 from app.core.time import now_epoch_ms
 from app.execution.models import ExecutionStatus, OrderIntent, OrderType, Side
 from app.marketdata.feed import SyntheticFeed
@@ -243,6 +244,7 @@ def run_backtest(manifest: BacktestManifest, output_dir: Path | None = None) -> 
                 f.write(json.dumps(ev, default=str) + "\n")
         _append_experiment_log(manifest, metrics, output_dir.parent)
 
+    backtest_runs_total.labels(strategy_id=manifest.strategy_id, outcome="ok").inc()
     return metrics
 
 

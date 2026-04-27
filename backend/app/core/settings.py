@@ -1,20 +1,24 @@
 from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_UNSAFE_JWT_SECRET = "change-me-please-long-random-string"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "development"
-    jwt_secret: str = "change-me-please-long-random-string"
+    jwt_secret: str = _UNSAFE_JWT_SECRET
     jwt_algo: str = "HS256"
     jwt_expire_minutes: int = 60
-    super_admin_email: str = "georgecoopmsapenda@gmail.com"
-    super_admin_password: str = "John16:33"
-    seed_demo_users: bool = False
 
-    # Paper-first safety locks. These must stay true/false respectively
-    # and cannot be overridden from API/UI.
+    super_admin_email: str = "admin@example.com"
+    super_admin_password: str = "changeme"
+
+    seed_demo_users: bool = False
+    seed_demo_password: str = "demo-changeme-1"
+
+    # Paper-first safety locks — cannot be overridden from API/UI.
     paper_trading_only: bool = True
     live_trading_enabled: bool = False
 
@@ -28,7 +32,13 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     s = Settings()
-    # Hard invariant: paper-first. Fail to boot if overridden.
+    # Hard invariants: paper-first. Fail to boot if overridden.
     assert s.paper_trading_only is True, "PAPER_TRADING_ONLY must be true"
     assert s.live_trading_enabled is False, "LIVE_TRADING_ENABLED must be false"
+    # Refuse to start in production with the default insecure JWT secret.
+    if s.app_env != "development" and s.jwt_secret == _UNSAFE_JWT_SECRET:
+        raise RuntimeError(
+            "JWT_SECRET is still the default placeholder. "
+            "Set a strong random secret via the JWT_SECRET env var before deploying."
+        )
     return s

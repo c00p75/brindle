@@ -28,25 +28,22 @@ export default function Navigation() {
 
   if (!user) return null;
 
-  const initials = user.email.slice(0, 2).toUpperCase();
-
   return (
-    <nav style={navStyle}>
-      <div style={innerStyle}>
+    <nav style={navWrap}>
+      <div style={navInner}>
         {/* Logo */}
-        <Link href="/dashboard" style={logoStyle}>
-          <div style={logoIconStyle}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M2 12 L6 7 L9 10 L13 4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          <span style={{ fontWeight: 700, fontSize: 15, color: "#0f172a", letterSpacing: "-0.01em" }}>
-            Trading Bot
+        <Link href="/dashboard" style={logoLink}>
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <rect width="28" height="28" rx="4" fill="#ff444f"/>
+            <path d="M6 20 L11 12 L15 16 L20 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span style={{ fontWeight: 800, fontSize: 16, color: "#0e0e0e", letterSpacing: "-0.02em" }}>
+            TradingBot
           </span>
         </Link>
 
-        {/* Nav links */}
-        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        {/* Primary nav */}
+        <div style={{ display: "flex", alignItems: "stretch", height: "100%", gap: 0 }}>
           {LINKS.map((l) => {
             const active = pathname === l.href || (l.href !== "/dashboard" && pathname.startsWith(l.href));
             return (
@@ -54,15 +51,16 @@ export default function Navigation() {
                 key={l.href}
                 href={l.href}
                 style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "0 16px",
                   fontSize: 14,
-                  fontWeight: active ? 600 : 500,
-                  color: active ? "#0d9488" : "#64748b",
-                  background: active ? "#f0fdfa" : "transparent",
+                  fontWeight: 600,
+                  color: active ? "#ff444f" : "#686868",
                   textDecoration: "none",
-                  transition: "color 0.15s, background 0.15s",
-                  letterSpacing: "0.005em",
+                  borderBottom: active ? "2px solid #ff444f" : "2px solid transparent",
+                  transition: "color 0.15s, border-color 0.15s",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {l.label}
@@ -72,38 +70,28 @@ export default function Navigation() {
         </div>
 
         {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={paperBadgeStyle}>
-            <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ flexShrink: 0 }}>
-              <circle cx="4" cy="4" r="3" fill="#0d9488"/>
-            </svg>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+          {/* Paper-only badge */}
+          <div style={paperBadge}>
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff444f", flexShrink: 0 }} />
             Paper only
-          </span>
+          </div>
 
-          <Link
-            href="/profile"
-            title="Profile"
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "5px 10px 5px 5px",
-              borderRadius: 999,
-              border: "1.5px solid #e2e8f0",
-              background: "#fff",
-              textDecoration: "none",
-              transition: "border-color 0.15s",
-            }}
-          >
-            <div style={avatarStyle}>{initials}</div>
-            <span style={{ fontSize: 13, color: "#334155", fontWeight: 500 }}>
-              {user.email.split("@")[0]}
-            </span>
-            <span style={{ fontSize: 11, color: "#94a3b8", background: "#f1f5f9", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
-              {user.role}
-            </span>
+          {/* User menu */}
+          <Link href="/profile" style={userChip}>
+            <div style={avatar}>{user.email.slice(0, 2).toUpperCase()}</div>
+            <div style={{ lineHeight: 1.3 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0e0e0e" }}>
+                {user.email.split("@")[0]}
+              </div>
+              <div style={{ fontSize: 11, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {user.role}
+              </div>
+            </div>
           </Link>
 
-          <button onClick={logout} style={logoutBtnStyle}>
-            Sign out
+          <button onClick={logout} className="btn ghost" style={{ padding: "7px 14px", fontSize: 13 }}>
+            Log out
           </button>
         </div>
       </div>
@@ -111,81 +99,71 @@ export default function Navigation() {
   );
 }
 
-const navStyle: React.CSSProperties = {
+const navWrap: React.CSSProperties = {
   background: "#fff",
-  borderBottom: "1px solid #e8edf3",
+  borderBottom: "1px solid #e8eaeb",
   position: "sticky",
   top: 0,
   zIndex: 50,
+  height: 56,
 };
 
-const innerStyle: React.CSSProperties = {
+const navInner: React.CSSProperties = {
   maxWidth: 1280,
   margin: "0 auto",
-  padding: "0 28px",
-  height: 60,
+  padding: "0 32px",
+  height: "100%",
   display: "flex",
-  alignItems: "center",
-  gap: 8,
+  alignItems: "stretch",
+  gap: 0,
 };
 
-const logoStyle: React.CSSProperties = {
+const logoLink: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 10,
   textDecoration: "none",
-  marginRight: 16,
+  marginRight: 24,
   flexShrink: 0,
 };
 
-const logoIconStyle: React.CSSProperties = {
-  width: 30,
-  height: 30,
-  borderRadius: 8,
-  background: "linear-gradient(135deg, #0d9488, #0f766e)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  boxShadow: "0 2px 6px rgba(13, 148, 136, 0.35)",
-};
-
-const paperBadgeStyle: React.CSSProperties = {
+const paperBadge: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
-  gap: 5,
+  gap: 6,
   padding: "4px 10px",
-  background: "#f0fdfa",
-  color: "#0f766e",
-  border: "1px solid #ccfbf1",
-  borderRadius: 999,
-  fontSize: 12,
-  fontWeight: 600,
-  letterSpacing: "0.02em",
-  whiteSpace: "nowrap",
+  background: "#fff5f5",
+  color: "#cc2626",
+  border: "1px solid #ffd0d0",
+  borderRadius: 3,
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.05em",
+  textTransform: "uppercase",
 };
 
-const avatarStyle: React.CSSProperties = {
+const userChip: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  padding: "6px 12px",
+  borderRadius: 4,
+  border: "1px solid #e8eaeb",
+  background: "#fafafa",
+  textDecoration: "none",
+  transition: "border-color 0.15s",
+};
+
+const avatar: React.CSSProperties = {
   width: 28,
   height: 28,
   borderRadius: "50%",
-  background: "linear-gradient(135deg, #0d9488, #0f766e)",
+  background: "#ff444f",
   color: "#fff",
   fontSize: 11,
-  fontWeight: 700,
+  fontWeight: 800,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   flexShrink: 0,
-};
-
-const logoutBtnStyle: React.CSSProperties = {
-  padding: "6px 14px",
-  border: "1.5px solid #e2e8f0",
-  background: "#fff",
-  borderRadius: 8,
-  cursor: "pointer",
-  fontSize: 13,
-  fontWeight: 500,
-  color: "#64748b",
-  transition: "border-color 0.15s, color 0.15s",
 };

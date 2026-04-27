@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.audit.models import AuditEvent
 from app.core.ids import new_id
+from app.core.metrics import audit_events_total
 from app.core.time import now_epoch_ms
 from app.db.engine import session_scope
 from app.db.orm import AuditRow
@@ -55,6 +56,7 @@ def record(
     with session_scope() as s:
         s.add(row)
         s.flush()
+        audit_events_total.labels(action=action).inc()
         return _row_to_event(row)
 
 

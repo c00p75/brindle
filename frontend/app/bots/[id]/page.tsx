@@ -64,17 +64,21 @@ function BotDetails() {
 
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <h1 style={{ marginBottom: 4 }}>{bot.name}</h1>
-          <div style={{ fontSize: 13, color: "#64748b" }}>
-            <code>{bot.id}</code> · owner {bot.owner_email}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+            <h1 style={{ marginBottom: 0 }}>{bot.name}</h1>
+            <span className={`pill ${bot.state}`}>{bot.state}</span>
+          </div>
+          <div style={{ fontSize: 12, color: "#aaaaaa" }}>
+            <code style={{ fontSize: 11 }}>{bot.id}</code>
+            <span style={{ margin: "0 8px", color: "#e8eaeb" }}>·</span>
+            {bot.owner_email}
           </div>
         </div>
-        <span className={`pill ${bot.state}`}>{bot.state}</span>
       </div>
 
-      <div style={{ display: "flex", gap: 8, margin: "16px 0" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {can(user?.role, "config:draft") && (
           <Link href={`/bots/${bot.id}/config`} className="btn" style={{ textDecoration: "none" }}>Edit configuration</Link>
         )}
@@ -90,30 +94,24 @@ function BotDetails() {
       </div>
 
       {positions.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Open positions</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-                <th style={th}>Symbol</th>
-                <th style={{ ...th, textAlign: "right" }}>Qty</th>
-                <th style={{ ...th, textAlign: "right" }}>Avg price</th>
-                <th style={{ ...th, textAlign: "right" }}>Realized PnL</th>
-                <th style={th}>Updated</th>
-              </tr>
-            </thead>
+        <div className="card" style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eaeb" }}><h2>Open positions</h2></div>
+          <table>
+            <thead><tr>
+              <th>Symbol</th><th style={{ textAlign: "right" }}>Qty</th>
+              <th style={{ textAlign: "right" }}>Avg price</th>
+              <th style={{ textAlign: "right" }}>Realized PnL</th><th>Updated</th>
+            </tr></thead>
             <tbody>
               {positions.map((p) => (
-                <tr key={p.symbol} style={{ borderTop: "1px solid #e2e8f0" }}>
-                  <td style={td}><b>{p.symbol}</b></td>
-                  <td style={{ ...td, textAlign: "right" }}>{p.quantity.toLocaleString()}</td>
-                  <td style={{ ...td, textAlign: "right" }}>
-                    {p.avg_price != null ? p.avg_price.toFixed(5) : "—"}
-                  </td>
-                  <td style={{ ...td, textAlign: "right", color: p.realized_pnl >= 0 ? "#15803d" : "#b91c1c" }}>
+                <tr key={p.symbol}>
+                  <td><b>{p.symbol}</b></td>
+                  <td style={{ textAlign: "right" }}>{p.quantity.toLocaleString()}</td>
+                  <td style={{ textAlign: "right" }}>{p.avg_price != null ? p.avg_price.toFixed(5) : "—"}</td>
+                  <td style={{ textAlign: "right" }} className={p.realized_pnl >= 0 ? "positive" : "negative"}>
                     {p.realized_pnl >= 0 ? "+" : ""}{p.realized_pnl.toFixed(2)}
                   </td>
-                  <td style={td}>{new Date(p.updated_at_ms).toLocaleTimeString()}</td>
+                  <td style={{ color: "#aaaaaa", fontSize: 12 }}>{new Date(p.updated_at_ms).toLocaleTimeString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -123,38 +121,30 @@ function BotDetails() {
 
       {fills.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Equity curve (cumulative realized PnL)</h2>
+          <h2 style={{ marginBottom: 14 }}>Equity curve</h2>
           <EquityChart fills={fills} />
         </div>
       )}
 
       {orders.length > 0 && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h2 style={{ marginTop: 0 }}>Recent orders</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-                <th style={th}>Symbol</th>
-                <th style={th}>Side</th>
-                <th style={th}>Type</th>
-                <th style={{ ...th, textAlign: "right" }}>Qty</th>
-                <th style={th}>Status</th>
-                <th style={th}>Reason</th>
-                <th style={th}>Submitted</th>
-              </tr>
-            </thead>
+        <div className="card" style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eaeb" }}><h2>Recent orders</h2></div>
+          <table>
+            <thead><tr>
+              <th>Symbol</th><th>Side</th><th>Type</th>
+              <th style={{ textAlign: "right" }}>Qty</th>
+              <th>Status</th><th>Reason</th><th>Submitted</th>
+            </tr></thead>
             <tbody>
               {orders.slice(0, 20).map((o) => (
-                <tr key={o.client_order_id} style={{ borderTop: "1px solid #e2e8f0" }}>
-                  <td style={td}>{o.symbol}</td>
-                  <td style={{ ...td, color: o.side === "buy" ? "#15803d" : "#b91c1c", fontWeight: 600 }}>
-                    {o.side.toUpperCase()}
-                  </td>
-                  <td style={td}>{o.order_type}</td>
-                  <td style={{ ...td, textAlign: "right" }}>{o.quantity.toLocaleString()}</td>
-                  <td style={td}><span className={`pill ${o.status}`}>{o.status}</span></td>
-                  <td style={{ ...td, fontSize: 12, color: "#64748b" }}>{o.reason ?? "—"}</td>
-                  <td style={td}>{new Date(o.submitted_at_ms).toLocaleTimeString()}</td>
+                <tr key={o.client_order_id}>
+                  <td style={{ fontWeight: 600 }}>{o.symbol}</td>
+                  <td className={o.side === "buy" ? "positive" : "negative"}>{o.side.toUpperCase()}</td>
+                  <td style={{ color: "#686868" }}>{o.order_type}</td>
+                  <td style={{ textAlign: "right" }}>{o.quantity.toLocaleString()}</td>
+                  <td><span className={`pill ${o.status}`}>{o.status}</span></td>
+                  <td style={{ fontSize: 12, color: "#aaaaaa" }}>{o.reason ?? "—"}</td>
+                  <td style={{ fontSize: 12, color: "#aaaaaa" }}>{new Date(o.submitted_at_ms).toLocaleTimeString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -163,20 +153,18 @@ function BotDetails() {
       )}
 
       {versions.some((v) => v.status === "pending_approval") && can(user?.role, "config:approve") && (
-        <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid #f59e0b" }}>
-          <h2 style={{ marginTop: 0, color: "#92400e" }}>Pending approval</h2>
+        <div className="card" style={{ marginBottom: 16, borderLeft: "3px solid #b37600" }}>
+          <h2 style={{ color: "#b37600", marginBottom: 12 }}>Pending approval</h2>
           {versions.filter((v) => v.status === "pending_approval").map((v) => (
-            <div key={v.version} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderTop: "1px solid #fde68a" }}>
-              <span>
-                <b>v{v.version}</b> — drafted by {v.created_by}
+            <div key={v.version} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderTop: "1px solid #f2f3f4" }}>
+              <span style={{ fontSize: 14 }}>
+                <b>v{v.version}</b> <span style={{ color: "#aaaaaa" }}>— drafted by {v.created_by}</span>
               </span>
-              <button
-                className="btn"
+              <button className="btn" style={{ fontSize: 13, padding: "7px 16px" }}
                 onClick={async () => {
                   try { await api.approveConfig(id, v.version); await refresh(); }
                   catch (e) { alert(e instanceof Error ? e.message : "failed"); }
-                }}
-              >
+                }}>
                 Approve
               </button>
             </div>
@@ -184,39 +172,36 @@ function BotDetails() {
         </div>
       )}
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginTop: 0 }}>Configuration versions</h2>
+      <div className="card" style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eaeb" }}><h2>Configuration versions</h2></div>
         {versions.length === 0 ? (
-          <p>No versions yet. <Link href={`/bots/${bot.id}/config`}>Create a draft</Link>.</p>
+          <div style={{ padding: 20 }}>
+            <p style={{ color: "#aaaaaa" }}>No versions yet. <Link href={`/bots/${bot.id}/config`}>Create a draft</Link>.</p>
+          </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", background: "#f8fafc" }}>
-                <th style={th}>Version</th><th style={th}>Status</th><th style={th}>By</th>
-                <th style={th}>Approved by</th><th style={th}>Applied</th>
-                {can(user?.role, "config:rollback") && <th style={th}></th>}
-              </tr>
-            </thead>
+          <table>
+            <thead><tr>
+              <th>Version</th><th>Status</th><th>By</th>
+              <th>Approved by</th><th>Applied</th>
+              {can(user?.role, "config:rollback") && <th></th>}
+            </tr></thead>
             <tbody>
               {versions.map((v) => (
-                <tr key={v.version} style={{ borderTop: "1px solid #e2e8f0" }}>
-                  <td style={td}>#{v.version}</td>
-                  <td style={td}><span className={`pill ${v.status}`}>{v.status}</span></td>
-                  <td style={td}>{v.created_by}</td>
-                  <td style={td}>{v.approved_by ?? <em style={{ color: "#94a3b8" }}>—</em>}</td>
-                  <td style={td}>{v.applied_at_ms ? new Date(v.applied_at_ms).toLocaleString() : "—"}</td>
+                <tr key={v.version}>
+                  <td><span style={{ fontFamily: "monospace", fontWeight: 700 }}>#{v.version}</span></td>
+                  <td><span className={`pill ${v.status}`}>{v.status}</span></td>
+                  <td style={{ fontSize: 13, color: "#686868" }}>{v.created_by}</td>
+                  <td style={{ fontSize: 13, color: "#aaaaaa" }}>{v.approved_by ?? "—"}</td>
+                  <td style={{ fontSize: 12, color: "#aaaaaa" }}>{v.applied_at_ms ? new Date(v.applied_at_ms).toLocaleString() : "—"}</td>
                   {can(user?.role, "config:rollback") && (
-                    <td style={td}>
+                    <td>
                       {v.status === "superseded" && (
-                        <button
-                          className="btn secondary"
-                          style={{ fontSize: 12, padding: "4px 10px" }}
+                        <button className="btn ghost" style={{ fontSize: 12, padding: "5px 10px" }}
                           onClick={async () => {
                             if (!confirm(`Roll back to v${v.version}? A new draft will be created.`)) return;
                             try { await api.rollback(id, v.version); await refresh(); }
                             catch (e) { alert(e instanceof Error ? e.message : "failed"); }
-                          }}
-                        >
+                          }}>
                           Rollback
                         </button>
                       )}
@@ -230,19 +215,21 @@ function BotDetails() {
       </div>
 
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Audit trail</h2>
+        <h2 style={{ marginBottom: 14 }}>Audit trail</h2>
         {audit.length === 0 ? (
-          <p>No events.</p>
+          <p style={{ color: "#aaaaaa" }}>No events.</p>
         ) : (
-          <ul style={{ paddingLeft: 18, fontSize: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {audit.slice(0, 20).map((e) => (
-              <li key={e.id}>
-                <b>{e.action}</b> by {e.actor_email} ({e.actor_role}){" "}
-                — {new Date(e.at_ms).toLocaleString()}
-                {e.outcome === "error" && <span style={{ color: "#b91c1c" }}> — {e.reason}</span>}
-              </li>
+              <div key={e.id} style={{ display: "flex", gap: 12, fontSize: 13, padding: "8px 0", borderBottom: "1px solid #f2f3f4" }}>
+                <span style={{ color: "#aaaaaa", whiteSpace: "nowrap", flexShrink: 0 }}>{new Date(e.at_ms).toLocaleString()}</span>
+                <span><b style={{ color: "#0e0e0e" }}>{e.action}</b>
+                  <span style={{ color: "#aaaaaa" }}> by {e.actor_email} ({e.actor_role})</span>
+                  {e.outcome === "error" && <span style={{ color: "#cc2626" }}> — {e.reason}</span>}
+                </span>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </>
@@ -267,24 +254,28 @@ function EquityChart({ fills }: { fills: Fill[] }) {
   const polyline = points.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(" ");
   const zeroY = toY(0).toFixed(1);
   const lastPnl = points[points.length - 1];
-  const color = lastPnl >= 0 ? "#15803d" : "#b91c1c";
+  const color = lastPnl >= 0 ? "#008265" : "#cc2626";
+  const fillColor = lastPnl >= 0 ? "rgba(0,130,101,0.08)" : "rgba(204,38,38,0.06)";
+  const areaPoints = `${toX(0).toFixed(1)},${H - PAD} ${polyline} ${toX(points.length - 1).toFixed(1)},${H - PAD}`;
 
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }}>
-        <line x1={PAD} y1={zeroY} x2={W - PAD} y2={zeroY} stroke="#e2e8f0" strokeWidth={1} />
+        <defs>
+          <linearGradient id="eq-grad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.15"/>
+            <stop offset="100%" stopColor={color} stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        <line x1={PAD} y1={zeroY} x2={W - PAD} y2={zeroY} stroke="#e8eaeb" strokeWidth={1} strokeDasharray="4 4"/>
+        <polygon points={areaPoints} fill="url(#eq-grad)" />
         <polyline points={polyline} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
         <circle cx={toX(points.length - 1)} cy={toY(lastPnl)} r={4} fill={color} />
       </svg>
-      <p style={{ fontSize: 13, color: "#64748b", margin: "4px 0 0" }}>
-        {fills.length} fill{fills.length !== 1 ? "s" : ""} · final PnL{" "}
-        <span style={{ fontWeight: 700, color }}>
-          {lastPnl >= 0 ? "+" : ""}{lastPnl.toFixed(2)}
-        </span>
-      </p>
+      <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13, color: "#aaaaaa" }}>
+        <span>{fills.length} fill{fills.length !== 1 ? "s" : ""}</span>
+        <span>Final PnL: <span style={{ fontWeight: 700, color }}>{lastPnl >= 0 ? "+" : ""}{lastPnl.toFixed(2)}</span></span>
+      </div>
     </div>
   );
 }
-
-const th: React.CSSProperties = { padding: "10px 12px", fontWeight: 600, fontSize: 13 };
-const td: React.CSSProperties = { padding: "10px 12px", fontSize: 14 };

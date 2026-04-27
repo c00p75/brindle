@@ -12,7 +12,7 @@ from app.auth.models import (
     User,
     UserPublic,
 )
-from app.auth.rate_limit import login_limiter
+from app.auth.rate_limit import forgot_password_limiter, login_limiter, totp_limiter
 from app.auth.service import (
     authenticate,
     request_password_reset,
@@ -26,10 +26,13 @@ from app.auth.service import (
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+def _ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(body: LoginRequest, request: Request) -> TokenResponse:
-    client_ip = request.client.host if request.client else "unknown"
-    if not login_limiter.is_allowed(client_ip):
+    if not login_limiter.is_allowed(_ip(request)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many login attempts — try again later")
 
     user = authenticate(body.email, body.password)
@@ -39,6 +42,8 @@ async def login(body: LoginRequest, request: Request) -> TokenResponse:
     if user.totp_enabled:
         if not body.totp_code:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "totp_code required")
+        if not totp_limiter.is_allowed(_ip(request)):
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many TOTP attempts")
         if not totp_check(user, body.totp_code):
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid TOTP code")
 
@@ -59,13 +64,17 @@ async def me(user: User = Depends(current_user)) -> UserPublic:
 # ---------------------------------------------------------------------------
 
 @router.post("/totp/setup", response_model=TOTPSetupResponse)
-async def setup_totp(user: User = Depends(current_user)) -> TOTPSetupResponse:
+async def setup_totp(request: Request, user: User = Depends(current_user)) -> TOTPSetupResponse:
+    if not totp_limiter.is_allowed(_ip(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many TOTP requests")
     secret, uri = totp_setup(user.email)
     return TOTPSetupResponse(secret=secret, provisioning_uri=uri)
 
 
 @router.post("/totp/verify")
-async def verify_totp(body: TOTPVerifyRequest, user: User = Depends(current_user)) -> dict:
+async def verify_totp(body: TOTPVerifyRequest, request: Request, user: User = Depends(current_user)) -> dict:
+    if not totp_limiter.is_allowed(_ip(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many TOTP attempts")
     ok = totp_verify_and_enable(user.email, body.code)
     if not ok:
         raise HTTPException(400, "invalid TOTP code")
@@ -83,7 +92,9 @@ async def disable_totp(user: User = Depends(current_user)) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/forgot-password", status_code=202)
-async def forgot_password(body: ForgotPasswordRequest) -> dict:
+async def forgot_password(body: ForgotPasswordRequest, request: Request) -> dict:
+    if not forgot_password_limiter.is_allowed(_ip(request)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "too many reset requests — try again later")
     request_password_reset(body.email)
     return {"detail": "if that email exists, a reset link has been logged to the server console"}
 

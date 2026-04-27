@@ -7,12 +7,12 @@ import { api, setSession } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [totp, setTotp] = useState("");
+  const [totp, setTotp]         = useState("");
   const [needTotp, setNeedTotp] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [busy, setBusy]         = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,107 +24,129 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "login failed";
-      if (msg.includes("totp_code required")) {
-        setNeedTotp(true);
-      } else {
-        setError(msg);
-      }
+      if (msg.includes("totp_code required")) setNeedTotp(true);
+      else setError(msg);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f0f4f8" }}>
-      {/* Left panel */}
+    <div style={{ minHeight: "100vh", display: "flex", background: "#f2f3f4" }}>
+      {/* Left branding panel */}
       <div style={{
-        flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
-        background: "linear-gradient(135deg, #0d9488 0%, #0f766e 100%)",
-        padding: 48, minHeight: "100vh",
+        width: 420, flexShrink: 0,
+        background: "#0e0e0e",
+        display: "flex", flexDirection: "column",
+        justifyContent: "center", padding: "60px 56px",
       }}>
-        <div style={{ color: "#fff", maxWidth: 360 }}>
-          <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: "-0.03em", marginBottom: 16 }}>
-            Trading Bot Platform
-          </div>
-          <p style={{ fontSize: 16, opacity: 0.85, lineHeight: 1.6 }}>
-            Paper-trading-first infrastructure with full governance, audit trail, and risk controls.
-          </p>
+        {/* Logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+            <rect width="36" height="36" rx="6" fill="#ff444f"/>
+            <path d="M7 26 L14 14 L19 20 L26 9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>TradingBot</span>
+        </div>
+
+        <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 16 }}>
+          Paper trading.<br/>Real discipline.
+        </h2>
+        <p style={{ color: "#686868", fontSize: 14, lineHeight: 1.7, marginBottom: 40 }}>
+          Full governance, risk controls, and audit trail — without touching real capital.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {["Risk gates on every order", "Draft → validate → apply config workflow", "Append-only audit trail", "TOTP two-factor auth"].map((f) => (
+            <div key={f} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <svg width="10" height="10" fill="none" viewBox="0 0 10 10">
+                  <path d="M2 5.5l2 2 4-4" stroke="#ff444f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <span style={{ fontSize: 13, color: "#888" }}>{f}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Form */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      {/* Right form panel */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 32 }}>
         <div style={{ width: "100%", maxWidth: 380 }}>
-          {/* Logo */}
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 36 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: "linear-gradient(135deg, #0d9488, #0f766e)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 4px 12px rgba(13,148,136,0.3)",
-            }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M2 14 L7 8 L10.5 11.5 L15 5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
-            <span style={{ fontWeight: 700, fontSize: 17, color: "#0f172a", letterSpacing: "-0.01em" }}>Trading Bot</span>
-          </div>
-
-          <h1 style={{ fontSize: 26, marginBottom: 6 }}>Welcome back</h1>
-          <p style={{ fontSize: 14, color: "#64748b", marginBottom: 28 }}>
-            Sign in to your account
+          <h1 style={{ fontSize: 24, marginBottom: 6 }}>
+            {needTotp ? "Two-factor verification" : "Welcome back"}
+          </h1>
+          <p style={{ color: "#aaaaaa", marginBottom: 28, fontSize: 13 }}>
+            {needTotp
+              ? "Enter the 6-digit code from your authenticator app"
+              : "Sign in to your account"}
           </p>
 
           <form onSubmit={submit}>
-            <label>Email address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoFocus
-            />
-
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
-
-            {needTotp && (
+            {!needTotp ? (
               <>
-                <label>Authenticator code</label>
+                <label>Email</label>
                 <input
-                  type="text"
-                  inputMode="numeric"
-                  value={totp}
-                  onChange={(e) => setTotp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
-                  style={{ letterSpacing: 4, textAlign: "center", fontSize: 18 }}
-                  maxLength={6}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  required
                   autoFocus
+                  style={{ width: "100%", marginBottom: 4 }}
+                />
+                <label>Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  style={{ width: "100%" }}
                 />
               </>
+            ) : (
+              <input
+                type="text"
+                inputMode="numeric"
+                value={totp}
+                onChange={(e) => setTotp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                placeholder="000000"
+                maxLength={6}
+                autoFocus
+                style={{ width: "100%", letterSpacing: 6, textAlign: "center", fontSize: 24, fontWeight: 700 }}
+              />
             )}
 
-            {error && <p className="error" style={{ marginTop: 12 }}>{error}</p>}
+            {error && <p className="error" style={{ marginTop: 12, marginBottom: 0 }}>{error}</p>}
 
-            <button type="submit" className="btn" disabled={busy} style={{ marginTop: 20, width: "100%" }}>
-              {busy ? "Signing in…" : "Sign in"}
+            <button type="submit" className="btn" disabled={busy}
+              style={{ marginTop: 20, width: "100%", padding: "12px 20px", fontSize: 15 }}>
+              {busy ? "Signing in…" : needTotp ? "Verify" : "Log in"}
             </button>
+
+            {needTotp && (
+              <button type="button" className="btn ghost"
+                style={{ marginTop: 10, width: "100%", fontSize: 13 }}
+                onClick={() => { setNeedTotp(false); setTotp(""); }}>
+                ← Back
+              </button>
+            )}
           </form>
 
-          <p style={{ fontSize: 13, textAlign: "center", marginTop: 16, color: "#94a3b8" }}>
-            <Link href="/forgot-password" style={{ color: "#64748b" }}>Forgot password?</Link>
-          </p>
+          {!needTotp && (
+            <p style={{ fontSize: 13, textAlign: "center", marginTop: 20, color: "#aaaaaa" }}>
+              <Link href="/forgot-password">Forgot password?</Link>
+            </p>
+          )}
 
-          <div style={{ marginTop: 36, paddingTop: 20, borderTop: "1px solid #e8edf3", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#0d9488" }} />
-            <span style={{ fontSize: 12, color: "#64748b", fontWeight: 500 }}>Paper trading only · live trading disabled</span>
+          <div style={{ marginTop: 40, padding: "14px 16px", background: "#fff", border: "1px solid #e8eaeb", borderRadius: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff444f", flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: "#aaaaaa", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Paper trading only · live execution disabled platform-wide
+              </span>
+            </div>
           </div>
         </div>
       </div>
