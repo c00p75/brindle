@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from app.strategies.base import Strategy
+from app.strategies.deriv import DerivV1
 from app.strategies.trend import TrendV1
 
 STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "trend_v1": TrendV1,
+    "deriv_v1": DerivV1,
 }
 
 

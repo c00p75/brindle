@@ -8,6 +8,7 @@ Runtime chooses: paper broker → SyntheticSource, anything else → LiveAdapter
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 log = logging.getLogger("marketdata")
 
 LIVE_STALE_THRESHOLD_MS = 15_000  # 15 s without a fresh tick → stale
+WARM_UP_DELAY_S = 0.5  # delay between warm-up ticks to avoid rate-limiting
 
 
 @runtime_checkable
@@ -119,8 +121,11 @@ class LiveAdapterSource:
     async def warm_up(self, symbol: str, n: int) -> None:
         # For live sources, warm_up pre-fills by polling; strategies that
         # need more history than n bars will emit no signal until ready.
-        for _ in range(n):
+        # Delay between calls to avoid broker rate-limiting.
+        for i in range(n):
             await self.next_bar(symbol)
+            if i < n - 1:
+                await asyncio.sleep(WARM_UP_DELAY_S)
 
 
 def build_source(bot_id: str, broker_type: str, adapter: BrokerAdapter | None, symbol_namespace: str) -> MarketDataSource:
