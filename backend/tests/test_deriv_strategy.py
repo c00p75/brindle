@@ -105,23 +105,26 @@ def test_signal_uses_notional():
 # ---------------------------------------------------------------------------
 
 def test_cooldown_suppresses_signal():
+    """After a signal fires, further signals are suppressed during cooldown."""
     s = DerivV1()
-    # Force a trade signal on first call
-    prices_down = [1.0] * 10 + [0.99, 0.98, 0.97, 0.96, 0.95, 0.94]
-    prices_up = prices_down + [0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02]
 
     params = {"sma_period": 5, "rsi_period": 5, "stake": 10.0, "cooldown_ticks": 100,
               "rsi_oversold": 30, "rsi_overbought": 70}
 
-    # First call — may or may not fire
-    s.on_data(_ctx(prices_down, params=params))
+    # Seed the prev_rsi with a value below oversold so next call detects a crossover
+    s._prev_rsi["EUR/USD"] = 25.0
+    # Force cooldown counter to be past cooldown so signal can fire
+    s._ticks_since_trade["EUR/USD"] = 100
 
-    # If any trade happened internally, the cooldown counter was reset.
-    # Subsequent call within cooldown should be suppressed.
-    result = s.on_data(_ctx(prices_up, params=params))
-    # With cooldown=100, this call should definitely be suppressed
-    # (we've only made 2 calls total, far less than 100)
-    assert result == []
+    # Craft prices where RSI is now above 30 and price > SMA → should trigger BUY
+    prices_recovery = [1.0] * 10 + [0.99, 0.98, 0.97, 0.96, 0.95, 0.96, 0.97, 0.98, 0.99, 1.0, 1.01, 1.02]
+    result1 = s.on_data(_ctx(prices_recovery, params=params))
+    assert len(result1) == 1  # should fire
+    assert result1[0].side.value == "buy"
+
+    # Second call immediately → still in cooldown (counter was reset to 0)
+    result2 = s.on_data(_ctx(prices_recovery, params=params))
+    assert result2 == []  # suppressed
 
 
 # ---------------------------------------------------------------------------
