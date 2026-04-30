@@ -1,4 +1,4 @@
-# Backend — Trading Bot Platform
+# Backend — Brindle Platform
 
 FastAPI + Pydantic. Python 3.11+.
 

@@ -311,6 +311,7 @@ function ConfigEditor() {
 }
 
 const PAPER_SYMBOLS = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/GBP"];
+const DERIV_SYMBOLS = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "V10/USD", "V25/USD", "V50/USD", "V75/USD", "V100/USD", "BOOM1000/USD", "BOOM500/USD", "CRASH1000/USD", "CRASH500/USD"];
 
 function SymbolPicker({ selected, onChange, namespace }: {
   selected: string[];
@@ -318,7 +319,7 @@ function SymbolPicker({ selected, onChange, namespace }: {
   namespace: string;
 }) {
   const [custom, setCustom] = useState("");
-  const presets = namespace === "paper" ? PAPER_SYMBOLS : [];
+  const presets = namespace === "paper" ? PAPER_SYMBOLS : namespace === "deriv" ? DERIV_SYMBOLS : [];
 
   function toggle(sym: string) {
     if (selected.includes(sym)) onChange(selected.filter((s) => s !== sym));

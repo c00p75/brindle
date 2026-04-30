@@ -70,27 +70,42 @@ export default function Navigation() {
         </div>
 
         {/* Right side */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+          <style>{`
+            .nav-user-chip:hover { background: #f4f5f6 !important; border-color: #d8dadb !important; }
+            .nav-logout-btn:hover { background: #fff0f0 !important; border-color: #ffb3b3 !important; color: #c41e1e !important; }
+            .nav-logout-btn:hover svg { stroke: #c41e1e; }
+          `}</style>
+
           {/* Paper-only badge */}
           <div style={paperBadge}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff444f", flexShrink: 0 }} />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e8242e", flexShrink: 0, boxShadow: "0 0 0 2px rgba(232,36,46,0.2)" }} />
             Paper only
           </div>
 
-          {/* User menu */}
-          <Link href="/profile" style={userChip}>
+          {/* Divider */}
+          <div style={{ width: 1, height: 20, background: "#e2e5e7", margin: "0 4px", flexShrink: 0 }} />
+
+          {/* User chip */}
+          <Link href="/profile" className="nav-user-chip" style={userChip}>
             <div style={avatar}>{user.email.slice(0, 2).toUpperCase()}</div>
-            <div style={{ lineHeight: 1.3 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#0e0e0e" }}>
+            <div style={{ lineHeight: 1.3, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0e0e0e", maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {user.email.split("@")[0]}
               </div>
-              <div style={{ fontSize: 11, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                {user.role}
+              <div style={{ marginTop: 2 }}>
+                <span style={rolePill}>{user.role}</span>
               </div>
             </div>
           </Link>
 
-          <button onClick={logout} className="btn ghost" style={{ padding: "7px 14px", fontSize: 13 }}>
+          {/* Log out */}
+          <button onClick={logout} className="nav-logout-btn" title="Log out" style={logoutBtn}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, transition: "stroke 0.12s" }}>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
             Log out
           </button>
         </div>
@@ -131,39 +146,70 @@ const paperBadge: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  padding: "4px 10px",
-  background: "#fff5f5",
-  color: "#cc2626",
-  border: "1px solid #ffd0d0",
-  borderRadius: 3,
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: "0.05em",
+  padding: "4px 10px 4px 8px",
+  background: "#fff0f0",
+  color: "#c41e1e",
+  border: "1px solid #fcc",
+  borderRadius: 999,
+  fontSize: 10,
+  fontWeight: 800,
+  letterSpacing: "0.06em",
   textTransform: "uppercase",
+  flexShrink: 0,
 };
 
 const userChip: React.CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 10,
-  padding: "6px 12px",
-  borderRadius: 4,
-  border: "1px solid #e8eaeb",
-  background: "#fafafa",
+  gap: 9,
+  padding: "5px 10px 5px 6px",
+  borderRadius: 8,
+  border: "1px solid transparent",
+  background: "transparent",
   textDecoration: "none",
-  transition: "border-color 0.15s",
+  transition: "background 0.12s, border-color 0.12s",
+  cursor: "pointer",
 };
 
 const avatar: React.CSSProperties = {
-  width: 28,
-  height: 28,
+  width: 32,
+  height: 32,
   borderRadius: "50%",
-  background: "#ff444f",
+  background: "linear-gradient(135deg, #ff5a63 0%, #e0202a 100%)",
   color: "#fff",
-  fontSize: 11,
+  fontSize: 12,
   fontWeight: 800,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   flexShrink: 0,
+  boxShadow: "0 1px 4px rgba(255,68,79,0.35)",
+};
+
+const rolePill: React.CSSProperties = {
+  display: "inline-block",
+  fontSize: 9,
+  fontWeight: 700,
+  letterSpacing: "0.07em",
+  textTransform: "uppercase",
+  color: "#5b6e7c",
+  background: "#edf0f2",
+  borderRadius: 3,
+  padding: "1px 5px",
+};
+
+const logoutBtn: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "6px 12px",
+  background: "transparent",
+  border: "1px solid #e2e5e7",
+  borderRadius: 6,
+  fontSize: 13,
+  fontWeight: 600,
+  color: "#555",
+  cursor: "pointer",
+  transition: "background 0.12s, border-color 0.12s, color 0.12s",
+  whiteSpace: "nowrap",
 };

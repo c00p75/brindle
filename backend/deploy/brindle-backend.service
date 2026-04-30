@@ -1,0 +1,17 @@
+[Unit]
+Description=Brindle Platform backend (FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/brindle/backend
+EnvironmentFile=/opt/brindle/backend/.env
+ExecStart=/opt/brindle/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

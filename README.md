@@ -1,4 +1,4 @@
-# Trading Bot Platform
+# Brindle Platform
 
 Paper-trading-first, broker-agnostic trading bot platform with a full-stack
 control UI. Build, configure, and operate multiple bots — each bound to its

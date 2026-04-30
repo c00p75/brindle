@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.adapters.brokers.base import BrokerAdapter, BrokerConfig
+from app.adapters.brokers.deriv_adapter import DerivAdapter
 from app.adapters.brokers.oanda_adapter import OandaAdapter
 from app.adapters.brokers.paper_adapter import PaperAdapter
 
@@ -8,8 +9,8 @@ from app.adapters.brokers.paper_adapter import PaperAdapter
 ADAPTER_REGISTRY: dict[str, type[BrokerAdapter]] = {
     "paper": PaperAdapter,
     "oanda": OandaAdapter,
-    # "deriv": DerivAdapter,   # Slice 3+
-    # "mt5":   MT5Adapter,     # Slice 3+
+    "deriv": DerivAdapter,
+    # "mt5":   MT5Adapter,     # future
 }
 
 

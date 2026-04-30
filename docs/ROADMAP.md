@@ -1,4 +1,4 @@
-# ROADMAP — Trading Bot Platform
+# ROADMAP — Brindle Platform
 
 Living document. **Tool-agnostic.** Any AI assistant (Claude, Cursor, Copilot,
 Codeium, etc.) or human contributor must read this before making non-trivial
@@ -306,12 +306,12 @@ In `docs/`:
 Production URLs and ops procedures are documented in
 `backend/deploy/README.md`. Summary:
 
-- Backend: `systemd` unit `trading-bot-backend` on the droplet, port 8000.
-  Update: `git pull && systemctl restart trading-bot-backend`.
-- Frontend: Vercel project `trading-bot-frontend` (team
+- Backend: `systemd` unit `brindle-backend` on the droplet, port 8000.
+  Update: `git pull && systemctl restart brindle-backend`.
+- Frontend: Vercel project `brindle-frontend` (team
   `ballo-innovations`). Update: `cd frontend && vercel deploy --prod --yes`.
-- DB: SQLite at `/opt/trading-bot/backend/data/trading-bot.db`,
-  `chown -R www-data:www-data /opt/trading-bot`.
+- DB: SQLite at `/opt/brindle/backend/data/brindle.db`,
+  `chown -R www-data:www-data /opt/brindle`.
 
 ---
 

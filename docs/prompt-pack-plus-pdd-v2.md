@@ -1,7 +1,7 @@
 This /docs pack is designed to make a Cursor-style assistant behave like an **execution contract**: strict slice scoping, deterministic tests, and hard safety gates that prevent accidental live trading, network-coupled tests, or secret leakage. Enforcement is aligned to primary tooling mechanisms: FastAPI’s official testing guidance recommends using `TestClient` with pytest, and FastAPI’s documented `app.dependency_overrides` allows replacing real dependencies with fakes for tests (a mechanical way to enforce “mock all exchange calls”). citeturn0search0turn0search1 Next.js officially supports `.env` loading and the `NEXT_PUBLIC_` convention (to prevent secrets from being bundled client-side), and its official `create-next-app` CLI is the canonical bootstrap path. citeturn0search2turn1search2 CCXT’s official async examples (`ccxt.async_support`, `fetch_ticker`, `exchange.close`) support a clean “runtime-only adapter” boundary. citeturn0search3 Pytest’s official `monkeypatch` documentation provides canonical `setenv/delenv` patterns to test safety gates without global side effects, and Vitest’s official mocking guide documents `vi.fn/vi.mock/vi.spyOn` for deterministic frontend tests with stubbed `fetch`. citeturn1search0turn1search1
 
 ```docs/README.md
-# /docs — Trading Bot Prompt Pack + PDD (Paper-Trading-First)
+# /docs — Brindle Prompt Pack + PDD (Paper-Trading-First)
 
 Date: 2026-04-04 (Africa/Lusaka)  
 Purpose: a concise, enforceable prompt + phase pack for Cursor, plus a Product Design Document (PDD) for engineering handoff.
@@ -40,7 +40,7 @@ Paste the block below as-is. Do not paraphrase it.
 
 ## Master prompt (≤ ~400 words)
 ~~~text
-You are a safety-first trading-systems engineer building a crypto trading-bot platform.
+You are a safety-first trading-systems engineer building a crypto brindle platform.
 
 HARD RULES (non-negotiable)
 - PAPER TRADING ONLY: any “place order” operation must call the paper order simulator; live exchange order APIs are forbidden. Do not generate or enable live trading code, endpoints, configs, or docs.
@@ -811,7 +811,7 @@ flowchart TD
 ```
 
 ```docs/PRODUCT_DESIGN.md
-# PRODUCT DESIGN DOCUMENT (PDD) — Paper-Trading-First Trading Bot Platform
+# PRODUCT DESIGN DOCUMENT (PDD) — Paper-Trading-First Brindle Platform
 
 Date: 2026-04-04 (Africa/Lusaka)  
 Status: Draft for engineering handoff  

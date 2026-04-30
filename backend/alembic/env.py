@@ -12,7 +12,7 @@ if config.config_file_name is not None:
 from app.db.orm import Base  # noqa: E402
 target_metadata = Base.metadata
 
-_db_url = os.getenv("DATABASE_URL") or "sqlite:///./data/trading-bot.db"
+_db_url = os.getenv("DATABASE_URL") or "sqlite:///./data/brindle.db"
 config.set_main_option("sqlalchemy.url", _db_url)
 
 

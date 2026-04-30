@@ -21,7 +21,7 @@ _state: dict = {"engine": None, "SessionLocal": None}
 
 def _default_sqlite_url() -> str:
     # Relative to backend/ working dir. `chown` the data/ dir to the service user.
-    return "sqlite:///./data/trading-bot.db"
+    return "sqlite:///./data/brindle.db"
 
 
 def _build() -> tuple[Engine, sessionmaker[Session]]:

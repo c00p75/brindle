@@ -1,4 +1,4 @@
-# Frontend — Trading Bot Platform
+# Frontend — Brindle Platform
 
 Next.js 14 (App Router), TypeScript, no client-state library (hooks + fetch).
 

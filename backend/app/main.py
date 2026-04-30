@@ -1,3 +1,8 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import time
 from contextlib import asynccontextmanager
 
@@ -31,7 +36,7 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
-        title="Trading Bot Platform",
+        title="Brindle Platform",
         version="0.1.0",
         description="Paper-trading-first, broker-agnostic trading bot platform",
         lifespan=lifespan,

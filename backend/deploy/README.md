@@ -9,8 +9,8 @@ apt-get install -y python3.12-venv git
 
 # Clone (replace URL with your repo)
 mkdir -p /opt && cd /opt
-git clone https://github.com/<owner>/trading-bot.git trading-bot
-cd trading-bot/backend
+git clone https://github.com/<owner>/brindle.git brindle
+cd brindle/backend
 
 # venv + deps
 python3.12 -m venv .venv
@@ -30,10 +30,10 @@ EOF
 chmod 600 .env
 
 # systemd
-chown -R www-data:www-data /opt/trading-bot
-cp deploy/trading-bot-backend.service /etc/systemd/system/
+chown -R www-data:www-data /opt/brindle
+cp deploy/brindle-backend.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now trading-bot-backend
+systemctl enable --now brindle-backend
 
 # Open firewall
 ufw allow 8000/tcp || true
@@ -45,9 +45,9 @@ curl -s http://127.0.0.1:8000/api/health
 ## Updating
 
 ```bash
-cd /opt/trading-bot
+cd /opt/brindle
 git pull
 cd backend
 .venv/bin/pip install -r requirements.txt
-systemctl restart trading-bot-backend
+systemctl restart brindle-backend
 ```

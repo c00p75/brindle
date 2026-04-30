@@ -45,18 +45,18 @@ Ship stdout to your log aggregator (Loki, Datadog, CloudWatch). Filter by `level
 
 ```bash
 # On your local machine
-rsync -az --delete backend/ user@<droplet-ip>:/opt/trading-bot/backend/
+rsync -az --delete backend/ user@<droplet-ip>:/opt/brindle/backend/
 
 # On the droplet
-cd /opt/trading-bot/backend
+cd /opt/brindle/backend
 source venv/bin/activate
 pip install -r requirements.txt
 alembic upgrade head
-sudo systemctl restart trading-bot-backend
-sudo systemctl status trading-bot-backend
+sudo systemctl restart brindle-backend
+sudo systemctl status brindle-backend
 ```
 
-Check logs: `sudo journalctl -u trading-bot-backend -f`
+Check logs: `sudo journalctl -u brindle-backend -f`
 
 ## Database migrations (Alembic)
 
@@ -73,7 +73,7 @@ alembic downgrade -1
 
 Set `DATABASE_URL` env var before running Alembic:
 
-- **SQLite (dev):** `sqlite:////opt/trading-bot/backend/data/db.sqlite3`
+- **SQLite (dev):** `sqlite:////opt/brindle/backend/data/db.sqlite3`
 - **Postgres (prod):** `postgresql+psycopg2://user:pass@host:5432/tradingbot`
 
 ## Required environment variables

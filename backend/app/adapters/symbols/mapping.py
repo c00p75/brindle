@@ -53,9 +53,24 @@ OANDA_NAMESPACE = SymbolMapper(
 DERIV_NAMESPACE = SymbolMapper(
     "deriv",
     {
+        # Forex
         "EUR/USD": "frxEURUSD",
         "GBP/USD": "frxGBPUSD",
         "USD/JPY": "frxUSDJPY",
+        "AUD/USD": "frxAUDUSD",
+        "USD/CAD": "frxUSDCAD",
+        "USD/CHF": "frxUSDCHF",
+        # Deriv synthetic indices (Volatility)
+        "V10/USD": "1HZ10V",
+        "V25/USD": "1HZ25V",
+        "V50/USD": "1HZ50V",
+        "V75/USD": "1HZ75V",
+        "V100/USD": "1HZ100V",
+        # Boom / Crash indices
+        "BOOM1000/USD": "BOOM1000",
+        "BOOM500/USD": "BOOM500",
+        "CRASH1000/USD": "CRASH1000",
+        "CRASH500/USD": "CRASH500",
     },
 )
 

@@ -3,7 +3,7 @@
 This /docs pack is designed to make a Cursor-style LLM assistant **behave like an execution contract**: strict scope per slice, mechanically enforceable test isolation, and explicit stop conditions. The key enforcement hooks are taken from official tooling capabilities: FastAPI’s in-process `TestClient` supports pytest-friendly endpoint tests without a running server, and its `app.dependency_overrides` is a first-class mechanism to replace real dependencies with fakes in tests (directly enforcing “mock all exchange calls”). citeturn0search1turn0search0 Next.js’ official documentation distinguishes browser-exposed environment variables via `NEXT_PUBLIC_`, enabling an enforceable “no secrets in client” rule, and `create-next-app` is the canonical bootstrap route. citeturn0search2turn1search2 CCXT’s official async examples (`ccxt.async_support`, `fetch_ticker`, `exchange.close`) support a clean runtime-only adapter boundary. citeturn1search0 Pytest’s `monkeypatch` (`setenv`, `delenv`) is the canonical tool for safe env-var manipulation in tests (useful for safety-gate tests). citeturn1search1 Vitest’s official mocking APIs (`vi.fn`, `vi.mock`, `vi.spyOn`) support deterministic frontend tests with mocked `fetch`. citeturn0search3turn0search19
 
 ```docs/README.md
-# /docs — Trading Bot Prompt Pack (Paper-Trading-First)
+# /docs — Brindle Prompt Pack (Paper-Trading-First)
 
 Date: 2026-04-02 (Africa/Lusaka)  
 Audience: developers using Cursor or similar LLM assistants  
@@ -41,7 +41,7 @@ Keep this prompt unchanged. It is written to be short, enforceable, and paper-tr
 
 ## Master prompt (≤ ~400 words)
 ~~~text
-You are a safety-first trading-systems engineer building a crypto trading-bot platform.
+You are a safety-first trading-systems engineer building a crypto brindle platform.
 
 HARD RULES (non-negotiable)
 - PAPER TRADING ONLY: any “place order” operation must call the paper order simulator; live exchange order APIs are forbidden. Do not generate or enable live trading code, endpoints, configs, or docs.
