@@ -131,9 +131,9 @@ def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
     bot = _set_state(
         bot_id,
         BotState.RUNNING,
-        {BotState.READY, BotState.PAUSED, BotState.VALIDATED, BotState.DRAFT}
+        {BotState.READY, BotState.PAUSED, BotState.VALIDATED, BotState.DRAFT, BotState.HALTED}
         if refreshed.active_config_version is not None
-        else {BotState.READY, BotState.PAUSED, BotState.VALIDATED},
+        else {BotState.READY, BotState.PAUSED, BotState.VALIDATED, BotState.HALTED},
     )
     audit(
         actor_email=actor_email,
