@@ -38,7 +38,7 @@ export default function Navigation() {
             <path d="M6 20 L11 12 L15 16 L20 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <span style={{ fontWeight: 800, fontSize: 16, color: "#0e0e0e", letterSpacing: "-0.02em" }}>
-            TradingBot
+            Brindle
           </span>
         </Link>
 

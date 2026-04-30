@@ -46,7 +46,7 @@ export default function LoginPage() {
             <rect width="36" height="36" rx="6" fill="#ff444f"/>
             <path d="M7 26 L14 14 L19 20 L26 9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
-          <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>TradingBot</span>
+          <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>Brindle</span>
         </div>
 
         <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 16 }}>
