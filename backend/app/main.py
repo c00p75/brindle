@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.alerts.routes import router as alerts_router
+from app.chat.routes import router as chat_router
 from app.audit.routes import router as audit_router
 from app.auth.routes import router as auth_router
 from app.research.routes import router as research_router
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(audit_router)
     app.include_router(alerts_router)
     app.include_router(research_router)
+    app.include_router(chat_router)
     return app
 
 
