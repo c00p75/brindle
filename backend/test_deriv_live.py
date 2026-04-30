@@ -4,7 +4,7 @@ def main():
     client = httpx.Client(base_url="http://localhost:8000")
 
     # 1. Login
-    resp = client.post("/api/auth/login", json={"email": "georgecoopmsapenda@gmail.com", "password": "John16:33"})
+    resp = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "changeme"})
     if resp.status_code != 200:
         print("Login failed", resp.text)
         return

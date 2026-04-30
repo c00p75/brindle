@@ -5,11 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useCallback } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
-import { api, getUser } from "@/lib/api";
+import { api, getUser, getToken } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import type { AuditEvent, Bot, ConfigVersion, Fill, Order, Position } from "@/lib/types";
-
-const POLL_INTERVAL = 3000; // 3 seconds when running
 
 export default function BotDetailsPage() {
   return (
@@ -35,7 +33,8 @@ function BotDetails() {
   const [err, setErr] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const [tab, setTab] = useState<"activity" | "config" | "audit">("activity");
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [sseConnected, setSseConnected] = useState(false);
+  const sseRef = useRef<EventSource | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -59,22 +58,82 @@ function BotDetails() {
     }
   }, [id]);
 
-  // Initial load + auto-poll when running
+  // Initial load
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  // SSE real-time stream when bot is running
   useEffect(() => {
-    if (bot?.state === "running") {
-      pollRef.current = setInterval(refresh, POLL_INTERVAL);
-    } else if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
+    if (bot?.state !== "running") {
+      // Clean up SSE if bot stopped
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+        setSseConnected(false);
+      }
+      return;
     }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+
+    const token = getToken();
+    if (!token) return;
+
+    const url = `/api/bots/${id}/stream?token=${encodeURIComponent(token)}`;
+    const es = new EventSource(url);
+    sseRef.current = es;
+
+    es.addEventListener("connected", () => {
+      setSseConnected(true);
+    });
+
+    es.addEventListener("order", (e) => {
+      const data = JSON.parse(e.data);
+      setOrders(prev => {
+        const idx = prev.findIndex(o => o.client_order_id === data.client_order_id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], ...data };
+          return updated;
+        }
+        return [data, ...prev];
+      });
+      setLastRefreshed(Date.now());
+    });
+
+    es.addEventListener("fill", (e) => {
+      const data = JSON.parse(e.data);
+      setFills(prev => {
+        if (prev.some(f => f.id === data.id)) return prev;
+        return [data, ...prev];
+      });
+      setLastRefreshed(Date.now());
+    });
+
+    es.addEventListener("position", (e) => {
+      const data = JSON.parse(e.data);
+      setPositions(prev => {
+        const idx = prev.findIndex(p => p.symbol === data.symbol);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], ...data, bot_id: id };
+          return updated;
+        }
+        return [...prev, { ...data, bot_id: id }];
+      });
+      setLastRefreshed(Date.now());
+    });
+
+    es.onerror = () => {
+      setSseConnected(false);
+      // EventSource auto-reconnects by default
     };
-  }, [bot?.state, refresh]);
+
+    return () => {
+      es.close();
+      sseRef.current = null;
+      setSseConnected(false);
+    };
+  }, [bot?.state, id]);
 
   if (err) return <p className="error">{err}</p>;
   if (!bot) return <p>Loading…</p>;
@@ -100,9 +159,16 @@ function BotDetails() {
             <h1 style={{ marginBottom: 0 }}>{bot.name}</h1>
             <span className={`pill ${bot.state}`}>{bot.state}</span>
             {bot.state === "running" && (
-              <span style={{ fontSize: 11, color: "#008265", display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#008265", display: "inline-block", animation: "pulse 2s infinite" }} />
-                Live
+              <span style={{
+                fontSize: 11, display: "flex", alignItems: "center", gap: 4,
+                color: sseConnected ? "#008265" : "#b37600",
+              }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: sseConnected ? "#008265" : "#b37600",
+                  display: "inline-block", animation: "pulse 2s infinite",
+                }} />
+                {sseConnected ? "Live" : "Connecting…"}
               </span>
             )}
           </div>

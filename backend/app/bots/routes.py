@@ -1,10 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException
+import asyncio
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
 
 from app.auth.deps import require
 from app.auth.models import User
 from app.bots import service as bot_service
 from app.bots.models import Bot
 from app.configs import service as config_service
+from app.core.eventbus import get_event_bus
 from app.execution import persistence as exec_persistence
 from app.runtime.manager import get_runtime_manager
 from pydantic import BaseModel, Field
@@ -116,3 +121,40 @@ async def active_config(bot_id: str, _: User = Depends(require("config:read"))):
         raise HTTPException(404, "bot not found")
     active = config_service.active_version(bot_id)
     return active.model_dump() if active else None
+
+
+@router.get("/{bot_id}/stream")
+async def stream_events(bot_id: str, request: Request, token: str = Query(...)):
+    """SSE endpoint — streams real-time order/fill/position events.
+
+    Auth is via ?token= query param because EventSource cannot send headers.
+    """
+    from app.auth.jwt import decode_token
+
+    try:
+        user = decode_token(token)
+    except Exception:
+        raise HTTPException(401, "invalid token")
+
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+
+    bus = get_event_bus()
+
+    async def event_generator():
+        # Send an initial heartbeat so the client knows the connection is live
+        yield f"event: connected\ndata: {json.dumps({'bot_id': bot_id})}\n\n"
+        async for event_type, data in bus.subscribe(bot_id):
+            if await request.is_disconnected():
+                break
+            yield f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

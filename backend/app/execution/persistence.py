@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from app.core.eventbus import get_event_bus
 from app.core.ids import new_id
 from app.core.time import now_epoch_ms
 from app.db.engine import session_scope
@@ -22,6 +23,9 @@ from app.execution.models import (
 
 def record_attempt(intent: OrderIntent, result: ExecutionResult) -> None:
     """Idempotent on (client_order_id). One row per attempt."""
+    bus = get_event_bus()
+    ts = now_epoch_ms()
+
     with session_scope() as s:
         existing = s.get(OrderRow, intent.client_order_id)
         if existing is None:
@@ -40,7 +44,7 @@ def record_attempt(intent: OrderIntent, result: ExecutionResult) -> None:
                 status=result.status.value,
                 broker_order_id=result.broker_order_id,
                 reason=result.reason,
-                submitted_at_ms=now_epoch_ms(),
+                submitted_at_ms=ts,
                 extra=result.extra or {},
             )
             s.add(row)
@@ -51,9 +55,23 @@ def record_attempt(intent: OrderIntent, result: ExecutionResult) -> None:
             if result.extra:
                 existing.extra = result.extra
 
+        # Publish order event
+        bus.publish(intent.bot_id, "order", {
+            "client_order_id": intent.client_order_id,
+            "symbol": intent.symbol,
+            "side": intent.side.value,
+            "order_type": intent.order_type.value,
+            "quantity": intent.quantity,
+            "notional": intent.notional,
+            "status": result.status.value,
+            "reason": result.reason,
+            "submitted_at_ms": ts,
+        })
+
         if result.status == ExecutionStatus.FILLED and result.filled_qty and result.avg_price:
+            fill_id = new_id("fill")
             fill = FillRow(
-                id=new_id("fill"),
+                id=fill_id,
                 bot_id=intent.bot_id,
                 client_order_id=intent.client_order_id,
                 symbol=intent.symbol,
@@ -61,19 +79,32 @@ def record_attempt(intent: OrderIntent, result: ExecutionResult) -> None:
                 quantity=result.filled_qty,
                 price=result.avg_price,
                 fees=result.fees or 0.0,
-                filled_at_ms=now_epoch_ms(),
+                filled_at_ms=ts,
             )
             s.add(fill)
+
+            # Publish fill event
+            bus.publish(intent.bot_id, "fill", {
+                "id": fill_id,
+                "symbol": intent.symbol,
+                "side": intent.side.value,
+                "quantity": result.filled_qty,
+                "price": result.avg_price,
+                "fees": result.fees or 0.0,
+                "filled_at_ms": ts,
+            })
+
             _apply_fill_to_position(
                 s,
                 bot_id=intent.bot_id,
                 symbol=intent.symbol,
                 signed_qty=result.filled_qty if intent.side == Side.BUY else -result.filled_qty,
                 price=result.avg_price,
+                bus=bus,
             )
 
 
-def _apply_fill_to_position(s, *, bot_id: str, symbol: str, signed_qty: float, price: float) -> None:
+def _apply_fill_to_position(s, *, bot_id: str, symbol: str, signed_qty: float, price: float, bus=None) -> None:
     pos = s.get(PositionRow, (bot_id, symbol))
     if pos is None:
         s.add(
@@ -86,6 +117,12 @@ def _apply_fill_to_position(s, *, bot_id: str, symbol: str, signed_qty: float, p
                 updated_at_ms=now_epoch_ms(),
             )
         )
+        if bus:
+            bus.publish(bot_id, "position", {
+                "symbol": symbol, "quantity": signed_qty,
+                "avg_price": price, "realized_pnl": 0.0,
+                "updated_at_ms": now_epoch_ms(),
+            })
         return
 
     new_qty = pos.quantity + signed_qty
@@ -124,6 +161,13 @@ def _apply_fill_to_position(s, *, bot_id: str, symbol: str, signed_qty: float, p
             pos.avg_price = None
 
     pos.updated_at_ms = now_epoch_ms()
+
+    if bus:
+        bus.publish(bot_id, "position", {
+            "symbol": symbol, "quantity": pos.quantity,
+            "avg_price": pos.avg_price, "realized_pnl": pos.realized_pnl,
+            "updated_at_ms": pos.updated_at_ms,
+        })
 
 
 def list_orders(bot_id: str, limit: int = 100) -> list[dict]:
