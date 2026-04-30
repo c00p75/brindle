@@ -78,7 +78,9 @@ function BotDetails() {
     const token = getToken();
     if (!token) return;
 
-    const url = `/api/bots/${id}/stream?token=${encodeURIComponent(token)}`;
+    // SSE must connect directly to the backend — Vercel's rewrite proxy buffers responses
+    const sseBase = process.env.NEXT_PUBLIC_SSE_BASE || process.env.NEXT_PUBLIC_API_BASE || "";
+    const url = `${sseBase}/api/bots/${id}/stream?token=${encodeURIComponent(token)}`;
     const es = new EventSource(url);
     sseRef.current = es;
 
