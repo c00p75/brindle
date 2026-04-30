@@ -43,7 +43,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
           <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-            <rect width="36" height="36" rx="6" fill="#ff444f"/>
+            <rect width="36" height="36" rx="6" fill="#4f46e5"/>
             <path d="M7 26 L14 14 L19 20 L26 9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>Brindle</span>
@@ -61,7 +61,7 @@ export default function LoginPage() {
             <div key={f} style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 20, height: 20, borderRadius: "50%", background: "#1a1a1a", border: "1px solid #333", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <svg width="10" height="10" fill="none" viewBox="0 0 10 10">
-                  <path d="M2 5.5l2 2 4-4" stroke="#ff444f" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M2 5.5l2 2 4-4" stroke="#4f46e5" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
               <span style={{ fontSize: 13, color: "#888" }}>{f}</span>
@@ -142,7 +142,7 @@ export default function LoginPage() {
 
           <div style={{ marginTop: 40, padding: "14px 16px", background: "#fff", border: "1px solid #e8eaeb", borderRadius: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#ff444f", flexShrink: 0 }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4f46e5", flexShrink: 0 }} />
               <span style={{ fontSize: 11, color: "#aaaaaa", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Paper trading only · live execution disabled platform-wide
               </span>

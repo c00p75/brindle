@@ -75,7 +75,7 @@ function Dashboard() {
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px 14px", borderBottom: "1px solid #e8eaeb" }}>
             <h2>Bots</h2>
-            <Link href="/bots" style={{ fontSize: 13, color: "#ff444f", fontWeight: 700 }}>View all</Link>
+            <Link href="/bots" style={{ fontSize: 13, color: "#4f46e5", fontWeight: 700 }}>View all</Link>
           </div>
           {bots.length === 0 ? (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
@@ -140,12 +140,12 @@ function Dashboard() {
 
           {/* Alerts */}
           {activeAlerts.length > 0 ? (
-            <div className="card" style={{ borderLeft: "3px solid #ff444f" }}>
+            <div className="card" style={{ borderLeft: "3px solid #4f46e5" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <h2 style={{ color: "#cc2626" }}>
                   {activeAlerts.length} active alert{activeAlerts.length !== 1 ? "s" : ""}
                 </h2>
-                <Link href="/alerts" style={{ fontSize: 12, color: "#ff444f", fontWeight: 700 }}>View all</Link>
+                <Link href="/alerts" style={{ fontSize: 12, color: "#4f46e5", fontWeight: 700 }}>View all</Link>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {activeAlerts.slice(0, 3).map((a) => (

@@ -55,12 +55,12 @@ function BotsList() {
 
       {bots.length === 0 ? (
         <div className="card" style={{ textAlign: "center", padding: "64px 24px" }}>
-          <div style={{ width: 56, height: 56, borderRadius: 8, background: "#fff5f5", border: "1px solid #ffd0d0", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
+          <div style={{ width: 56, height: 56, borderRadius: 8, background: "#f5f7ff", border: "1px solid #c7d2fe", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
             <svg width="28" height="28" fill="none" viewBox="0 0 28 28">
-              <rect x="5" y="10" width="18" height="14" rx="3" stroke="#ff444f" strokeWidth="1.5"/>
-              <path d="M10 10V8a4 4 0 018 0v2" stroke="#ff444f" strokeWidth="1.5"/>
-              <circle cx="10.5" cy="17" r="1.5" fill="#ff444f"/>
-              <circle cx="17.5" cy="17" r="1.5" fill="#ff444f"/>
+              <rect x="5" y="10" width="18" height="14" rx="3" stroke="#4f46e5" strokeWidth="1.5"/>
+              <path d="M10 10V8a4 4 0 018 0v2" stroke="#4f46e5" strokeWidth="1.5"/>
+              <circle cx="10.5" cy="17" r="1.5" fill="#4f46e5"/>
+              <circle cx="17.5" cy="17" r="1.5" fill="#4f46e5"/>
             </svg>
           </div>
           <p style={{ color: "#686868", fontSize: 15, marginBottom: 20, fontWeight: 600 }}>No bots configured yet</p>

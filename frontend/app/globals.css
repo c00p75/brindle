@@ -30,8 +30,8 @@ h2 {
 }
 h3 { font-size: 14px; font-weight: 600; color: #333333; }
 
-a { color: #ff444f; text-decoration: none; }
-a:hover { color: #cc0000; text-decoration: underline; }
+a { color: #4f46e5; text-decoration: none; }
+a:hover { color: #3730a3; text-decoration: underline; }
 
 code {
   font-family: "IBM Plex Mono", "Fira Code", ui-monospace, monospace;
@@ -58,15 +58,15 @@ input, select, textarea {
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: #ff444f;
-  box-shadow: 0 0 0 2px rgba(255, 68, 79, 0.15);
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.15);
 }
 
 input::placeholder { color: #aaaaaa; }
 
 input[type="checkbox"] {
   width: 16px; height: 16px; padding: 0;
-  accent-color: #ff444f; cursor: pointer;
+  accent-color: #4f46e5; cursor: pointer;
 }
 
 label {
@@ -104,8 +104,8 @@ label {
   gap: 6px;
   padding: 10px 20px;
   border-radius: 4px;
-  border: 1px solid #ff444f;
-  background: #ff444f;
+  border: 1px solid #4f46e5;
+  background: #4f46e5;
   color: #fff;
   font-size: 14px;
   font-weight: 700;
@@ -115,9 +115,9 @@ label {
 }
 
 .btn:hover:not(:disabled) {
-  background: #cc0000;
-  border-color: #cc0000;
-  box-shadow: 0 4px 12px rgba(255, 68, 79, 0.3);
+  background: #3730a3;
+  border-color: #3730a3;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
 }
 
 .btn:active:not(:disabled) { transform: translateY(1px); }
@@ -125,11 +125,11 @@ label {
 
 .btn.secondary {
   background: #fff;
-  color: #ff444f;
-  border-color: #ff444f;
+  color: #4f46e5;
+  border-color: #4f46e5;
 }
 .btn.secondary:hover:not(:disabled) {
-  background: #fff5f5;
+  background: #f5f7ff;
   box-shadow: none;
 }
 
@@ -218,7 +218,7 @@ label {
   gap: 8px;
   padding: 10px 14px;
   background: #fff0f0;
-  border-left: 3px solid #ff444f;
+  border-left: 3px solid #4f46e5;
   border-radius: 4px;
   color: #cc2626;
   font-size: 13px;

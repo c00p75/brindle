@@ -34,7 +34,7 @@ export default function Navigation() {
         {/* Logo */}
         <Link href="/dashboard" style={logoLink}>
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="4" fill="#ff444f"/>
+            <rect width="28" height="28" rx="4" fill="#4f46e5"/>
             <path d="M6 20 L11 12 L15 16 L20 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
           <span style={{ fontWeight: 800, fontSize: 16, color: "#0e0e0e", letterSpacing: "-0.02em" }}>
@@ -56,9 +56,9 @@ export default function Navigation() {
                   padding: "0 16px",
                   fontSize: 14,
                   fontWeight: 600,
-                  color: active ? "#ff444f" : "#686868",
+                  color: active ? "#4f46e5" : "#686868",
                   textDecoration: "none",
-                  borderBottom: active ? "2px solid #ff444f" : "2px solid transparent",
+                  borderBottom: active ? "2px solid #4f46e5" : "2px solid transparent",
                   transition: "color 0.15s, border-color 0.15s",
                   whiteSpace: "nowrap",
                 }}
@@ -73,15 +73,16 @@ export default function Navigation() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
           <style>{`
             .nav-user-chip:hover { background: #f4f5f6 !important; border-color: #d8dadb !important; }
-            .nav-logout-btn:hover { background: #fff0f0 !important; border-color: #ffb3b3 !important; color: #c41e1e !important; }
-            .nav-logout-btn:hover svg { stroke: #c41e1e; }
+            .nav-logout-btn:hover { background: #fef2f2 !important; border-color: #fecaca !important; color: #dc2626 !important; }
+            .nav-logout-btn:hover svg { stroke: #dc2626; }
           `}</style>
 
           {/* Paper-only badge */}
           <div style={paperBadge}>
-            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#e8242e", flexShrink: 0, boxShadow: "0 0 0 2px rgba(232,36,46,0.2)" }} />
+            <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#4f46e5", flexShrink: 0, boxShadow: "0 0 0 2px rgba(79,70,229,0.2)" }} />
             Paper only
           </div>
+
 
           {/* Divider */}
           <div style={{ width: 1, height: 20, background: "#e2e5e7", margin: "0 4px", flexShrink: 0 }} />
@@ -147,9 +148,9 @@ const paperBadge: React.CSSProperties = {
   alignItems: "center",
   gap: 6,
   padding: "4px 10px 4px 8px",
-  background: "#fff0f0",
-  color: "#c41e1e",
-  border: "1px solid #fcc",
+  background: "#f5f7ff",
+  color: "#4338ca",
+  border: "1px solid #c7d2fe",
   borderRadius: 999,
   fontSize: 10,
   fontWeight: 800,
@@ -175,7 +176,7 @@ const avatar: React.CSSProperties = {
   width: 32,
   height: 32,
   borderRadius: "50%",
-  background: "linear-gradient(135deg, #ff5a63 0%, #e0202a 100%)",
+  background: "linear-gradient(135deg, #818cf8 0%, #4f46e5 100%)",
   color: "#fff",
   fontSize: 12,
   fontWeight: 800,
@@ -183,7 +184,7 @@ const avatar: React.CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   flexShrink: 0,
-  boxShadow: "0 1px 4px rgba(255,68,79,0.35)",
+  boxShadow: "0 1px 4px rgba(79,70,229,0.35)",
 };
 
 const rolePill: React.CSSProperties = {
