@@ -7,7 +7,7 @@ import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api, getUser, getToken } from "@/lib/api";
 import { can } from "@/lib/rbac";
-import type { AuditEvent, Bot, ConfigVersion, Fill, Order, Position } from "@/lib/types";
+import type { AuditEvent, Bot, ConfigVersion, Fill, Order, Position, TickEvent } from "@/lib/types";
 
 export default function BotDetailsPage() {
   return (
@@ -34,6 +34,8 @@ function BotDetails() {
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const [tab, setTab] = useState<"activity" | "config" | "audit">("activity");
   const [sseConnected, setSseConnected] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [ticks, setTicks] = useState<Record<string, TickEvent>>({});
   const sseRef = useRef<EventSource | null>(null);
 
   const refresh = useCallback(async () => {
@@ -109,6 +111,11 @@ function BotDetails() {
         return [data, ...prev];
       });
       setLastRefreshed(Date.now());
+    });
+
+    es.addEventListener("tick", (e) => {
+      const data = JSON.parse(e.data) as TickEvent;
+      setTicks(prev => ({ ...prev, [data.symbol]: data }));
     });
 
     es.addEventListener("position", (e) => {
@@ -205,7 +212,35 @@ function BotDetails() {
         <button className="btn ghost" onClick={refresh} style={{ marginLeft: "auto" }}>
           ↻ Refresh
         </button>
+        {bot.state === "running" && (
+          <button
+            className="btn ghost"
+            onClick={() => setPanelOpen(o => !o)}
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              background: panelOpen ? "#eff6ff" : undefined,
+              border: panelOpen ? "1px solid #4f46e5" : undefined,
+              color: panelOpen ? "#4f46e5" : undefined,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M9 1v12" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M5 5h1M5 7h1M5 9h1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            Monitor
+          </button>
+        )}
       </div>
+
+      {/* Strategy monitor panel */}
+      <StrategyPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        ticks={ticks}
+        botState={bot.state}
+        sseConnected={sseConnected}
+      />
 
       {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
@@ -478,12 +513,16 @@ function BotDetails() {
         </div>
       )}
 
-      {/* Pulse animation */}
+      {/* Animations */}
       <style>{`
         @keyframes pulse {
           0% { opacity: 1; }
           50% { opacity: 0.4; }
           100% { opacity: 1; }
+        }
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to   { transform: translateX(0);    opacity: 1; }
         }
       `}</style>
     </>
@@ -498,6 +537,218 @@ function StatCard({ label, value, color, subtext, subtextColor }: {
       <div style={{ fontSize: 11, fontWeight: 700, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>{label}</div>
       <div style={{ fontSize: 28, fontWeight: 700, color, letterSpacing: "-0.03em", lineHeight: 1 }}>{value}</div>
       {subtext && <div style={{ fontSize: 11, color: subtextColor || "#aaaaaa", marginTop: 6 }}>{subtext}</div>}
+    </div>
+  );
+}
+
+const SIGNAL_META: Record<string, { color: string; bg: string; icon: string }> = {
+  warming_up:  { color: "#686868", bg: "#f2f3f4", icon: "⏳" },
+  watching:    { color: "#4f46e5", bg: "#eff6ff", icon: "👁" },
+  cooldown:    { color: "#b37600", bg: "#fffbeb", icon: "⏸" },
+  signal_buy:  { color: "#008265", bg: "#edfaf7", icon: "▲" },
+  signal_sell: { color: "#cc2626", bg: "#fff0f0", icon: "▼" },
+  weak_signal: { color: "#9c4f00", bg: "#fff7ed", icon: "~" },
+};
+
+function StrategyPanel({
+  open, onClose, ticks, botState, sseConnected,
+}: {
+  open: boolean;
+  onClose: () => void;
+  ticks: Record<string, TickEvent>;
+  botState: string;
+  sseConnected: boolean;
+}) {
+  if (!open) return null;
+
+  const symbols = Object.keys(ticks);
+
+  return (
+    <>
+      {/* Backdrop (mobile) */}
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 999,
+          background: "rgba(0,0,0,0.15)",
+        }}
+      />
+      {/* Panel */}
+      <div style={{
+        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 1000,
+        width: 340, background: "#fff",
+        boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+        display: "flex", flexDirection: "column",
+        animation: "slideIn 0.22s ease",
+        overflowY: "auto",
+      }}>
+        {/* Panel header */}
+        <div style={{
+          padding: "16px 20px", borderBottom: "1px solid #e8eaeb",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          position: "sticky", top: 0, background: "#fff", zIndex: 1,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="1" width="14" height="14" rx="2.5" stroke="#4f46e5" strokeWidth="1.5"/>
+              <path d="M10 1v14" stroke="#4f46e5" strokeWidth="1.5"/>
+              <path d="M5 6h2M5 8h2M5 10h2" stroke="#4f46e5" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            <span style={{ fontWeight: 700, fontSize: 14, color: "#0e0e0e" }}>Strategy Monitor</span>
+            {sseConnected && (
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: "#008265", display: "inline-block",
+                animation: "pulse 2s infinite",
+              }} />
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              color: "#686868", fontSize: 18, lineHeight: 1, padding: "2px 4px",
+            }}
+          >×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+          {botState !== "running" ? (
+            <div style={{ textAlign: "center", padding: "32px 0", color: "#aaaaaa" }}>
+              <div style={{ fontSize: 28, marginBottom: 12 }}>⏹</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Bot is not running</div>
+              <div style={{ fontSize: 12 }}>Start the bot to see live strategy state.</div>
+            </div>
+          ) : symbols.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 0", color: "#aaaaaa" }}>
+              <div style={{ fontSize: 28, marginBottom: 12, animation: "pulse 2s infinite" }}>📡</div>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Waiting for first tick…</div>
+              <div style={{ fontSize: 12 }}>Strategy data will appear here once the bot processes its first market bar.</div>
+            </div>
+          ) : (
+            symbols.map(sym => <SymbolCard key={sym} tick={ticks[sym]} />)
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding: "12px 20px", borderTop: "1px solid #e8eaeb",
+          fontSize: 11, color: "#aaaaaa", textAlign: "center",
+        }}>
+          Updates every ~1 second via live stream
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SymbolCard({ tick }: { tick: TickEvent }) {
+  const meta = SIGNAL_META[tick.signal.status] ?? SIGNAL_META.watching;
+  const age = Math.round((Date.now() - tick.ts_ms) / 1000);
+  const indicators = Object.entries(tick.indicators);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Symbol + price */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <span style={{ fontWeight: 700, fontSize: 15, color: "#0e0e0e" }}>{tick.symbol}</span>
+        <span style={{ fontFamily: "ui-monospace, Menlo, monospace", fontWeight: 700, fontSize: 16, color: "#0e0e0e" }}>
+          {tick.mark_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 })}
+        </span>
+      </div>
+
+      {/* Signal status badge */}
+      <div style={{
+        borderRadius: 8, padding: "10px 12px",
+        background: meta.bg, border: `1px solid ${meta.color}22`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ fontSize: 13 }}>{meta.icon}</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: meta.color }}>{tick.signal.label}</span>
+        </div>
+        <div style={{ fontSize: 12, color: "#686868", lineHeight: 1.5 }}>{tick.signal.detail}</div>
+        {tick.signal.cooldown_remaining > 0 && (
+          <div style={{
+            marginTop: 6, height: 4, borderRadius: 2,
+            background: "#e8eaeb", overflow: "hidden",
+          }}>
+            <div style={{
+              height: "100%", borderRadius: 2,
+              background: meta.color,
+              width: `${Math.min(100, (tick.signal.cooldown_remaining / 10) * 100)}%`,
+              transition: "width 0.5s",
+            }} />
+          </div>
+        )}
+      </div>
+
+      {/* Data warm-up progress bar */}
+      {tick.signal.status === "warming_up" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#aaaaaa", marginBottom: 4 }}>
+            <span>Warming up</span>
+            <span>{tick.bars_available} / {tick.bars_needed} bars</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: "#e8eaeb", overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 2, background: "#4f46e5",
+              width: `${Math.min(100, (tick.bars_available / tick.bars_needed) * 100)}%`,
+              transition: "width 0.5s",
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* Indicators */}
+      {indicators.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+            Indicators
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {indicators.map(([key, val]) => (
+              <div key={key} style={{
+                background: "#f8fafc", borderRadius: 6, padding: "8px 10px",
+              }}>
+                <div style={{ fontSize: 10, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>
+                  {key.replace(/_/g, " ")}
+                </div>
+                <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, fontWeight: 600, color: "#0e0e0e" }}>
+                  {typeof val === "number" ? val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 5 }) : val}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Position + meta */}
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{
+          flex: 1, background: "#f8fafc", borderRadius: 6, padding: "8px 10px",
+          display: "flex", flexDirection: "column", gap: 2,
+        }}>
+          <div style={{ fontSize: 10, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em" }}>Position</div>
+          <div style={{ fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, fontWeight: 600, color: tick.position_qty !== 0 ? "#0e0e0e" : "#aaaaaa" }}>
+            {tick.position_qty !== 0 ? tick.position_qty.toLocaleString() : "Flat"}
+          </div>
+        </div>
+        <div style={{
+          flex: 1, background: "#f8fafc", borderRadius: 6, padding: "8px 10px",
+          display: "flex", flexDirection: "column", gap: 2,
+        }}>
+          <div style={{ fontSize: 10, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em" }}>Last update</div>
+          <div style={{ fontSize: 13, color: "#686868" }}>
+            {age < 5 ? "Just now" : `${age}s ago`}
+          </div>
+        </div>
+      </div>
+
+      {/* Bars available */}
+      <div style={{ fontSize: 11, color: "#aaaaaa", textAlign: "right" }}>
+        {tick.bars_available} bars loaded · {tick.strategy_id}
+      </div>
     </div>
   );
 }

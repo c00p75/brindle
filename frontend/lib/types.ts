@@ -184,6 +184,33 @@ export interface BacktestMetrics {
   completed_at_ms: number;
 }
 
+export type TickSignalStatus =
+  | "warming_up"
+  | "watching"
+  | "cooldown"
+  | "signal_buy"
+  | "signal_sell"
+  | "weak_signal";
+
+export interface TickSignal {
+  status: TickSignalStatus;
+  label: string;
+  detail: string;
+  cooldown_remaining: number;
+}
+
+export interface TickEvent {
+  symbol: string;
+  ts_ms: number;
+  mark_price: number;
+  strategy_id: string;
+  position_qty: number;
+  bars_available: number;
+  bars_needed: number;
+  indicators: Record<string, number>;
+  signal: TickSignal;
+}
+
 export type Severity = "info" | "warning" | "critical";
 export type AlertStatus = "active" | "acknowledged" | "resolved";
 

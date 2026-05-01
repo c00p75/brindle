@@ -44,6 +44,79 @@ class TrendV1:
     def __init__(self) -> None:
         self._ticks_since_trade: dict[str, int] = {}
 
+    def debug_state(self, ctx: StrategyContext) -> dict:
+        """Return current indicator values and signal reasoning for the debug panel."""
+        params = ctx.params
+        fast_n = int(params.get("fast", 5))
+        slow_n = int(params.get("slow", 20))
+        min_cross_pct = float(params.get("min_cross_pct", 0.02))
+        cooldown_ticks = int(params.get("cooldown_ticks", 10))
+
+        closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]
+        bars_needed = slow_n + 1
+
+        if len(closes) < bars_needed:
+            return {
+                "bars_available": len(closes),
+                "bars_needed": bars_needed,
+                "indicators": {},
+                "signal": {
+                    "status": "warming_up",
+                    "label": "Collecting data",
+                    "detail": f"Need {bars_needed} bars, have {len(closes)}",
+                    "cooldown_remaining": 0,
+                },
+            }
+
+        fast_now = _sma(closes, fast_n)
+        slow_now = _sma(closes, slow_n)
+        fast_prev = _sma(closes[:-1], fast_n)
+        slow_prev = _sma(closes[:-1], slow_n)
+
+        spread_pct = (
+            abs(fast_now - slow_now) / abs(slow_now) * 100  # type: ignore[operator]
+            if slow_now
+            else 0.0
+        )
+        crossed_up = (fast_prev or 0) <= (slow_prev or 0) and (fast_now or 0) > (slow_now or 0)
+        crossed_down = (fast_prev or 0) >= (slow_prev or 0) and (fast_now or 0) < (slow_now or 0)
+
+        ticks = self._ticks_since_trade.get(ctx.symbol, cooldown_ticks)
+        cooldown_remaining = max(0, cooldown_ticks - ticks)
+
+        if cooldown_remaining > 0:
+            status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick{'s' if cooldown_remaining != 1 else ''} remaining"
+            detail = "Recent signal fired; waiting before next entry."
+        elif crossed_up and spread_pct >= min_cross_pct:
+            status, label = "signal_buy", "BUY signal"
+            detail = f"Fast SMA crossed above slow SMA (spread {spread_pct:.3f}% ≥ min {min_cross_pct}%)"
+        elif crossed_down and spread_pct >= min_cross_pct:
+            status, label = "signal_sell", "SELL signal"
+            detail = f"Fast SMA crossed below slow SMA (spread {spread_pct:.3f}% ≥ min {min_cross_pct}%)"
+        elif (crossed_up or crossed_down) and spread_pct < min_cross_pct:
+            status, label = "weak_signal", "Crossover too weak"
+            detail = f"Cross detected but spread {spread_pct:.3f}% < min {min_cross_pct}% — filtered out"
+        else:
+            direction = "above" if (fast_now or 0) > (slow_now or 0) else "below"
+            status, label = "watching", "Watching for crossover"
+            detail = f"Fast SMA ({fast_now:.5f}) is {direction} slow SMA ({slow_now:.5f}) — no new cross"
+
+        return {
+            "bars_available": len(closes),
+            "bars_needed": bars_needed,
+            "indicators": {
+                "fast_sma": round(fast_now or 0, 6),
+                "slow_sma": round(slow_now or 0, 6),
+                "spread_pct": round(spread_pct, 4),
+            },
+            "signal": {
+                "status": status,
+                "label": label,
+                "detail": detail,
+                "cooldown_remaining": cooldown_remaining,
+            },
+        }
+
     def on_data(self, ctx: StrategyContext) -> list[OrderIntent]:
         params = ctx.params
         fast_n = int(params.get("fast", 5))

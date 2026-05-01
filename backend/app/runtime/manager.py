@@ -25,6 +25,7 @@ from app.execution.persistence import get_position_qty
 from app.execution.service import ExecutionService
 from app.marketdata.source import build_source
 from app.risk.engine import PortfolioSnapshot, RiskEngine
+from app.core.eventbus import get_event_bus
 from app.strategies.base import StrategyContext
 from app.strategies.registry import create_strategy
 
@@ -152,6 +153,11 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     mark_price=bar.close,
                 )
                 intents = strategy.on_data(ctx)
+
+                # Publish a tick event so the UI debug panel can display live
+                # strategy state regardless of whether a signal was generated.
+                _publish_tick(bot.id, strategy, ctx, bar)
+
                 if not intents:
                     continue
 
@@ -182,7 +188,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                         return
 
             await asyncio.sleep(TICK_INTERVAL_S)
-    except asyncio.CancelledError:
+    except asyncio.CancelledError:  # noqa: PERF203
         log.info("runtime cancelled bot=%s", bot.id)
         raise
     except Exception as e:  # noqa: BLE001
@@ -198,3 +204,22 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             await adapter.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+def _publish_tick(bot_id: str, strategy: object, ctx: StrategyContext, bar: object) -> None:
+    """Publish a live tick event for the UI debug panel. Best-effort — never raises."""
+    try:
+        debug_fn = getattr(strategy, "debug_state", None)
+        if debug_fn is None:
+            return
+        state = debug_fn(ctx)
+        get_event_bus().publish(bot_id, "tick", {
+            "symbol": ctx.symbol,
+            "ts_ms": getattr(bar, "ts_ms", 0),
+            "mark_price": ctx.mark_price,
+            "strategy_id": ctx.strategy_id,
+            "position_qty": ctx.current_position_qty,
+            **state,
+        })
+    except Exception:  # noqa: BLE001
+        pass
