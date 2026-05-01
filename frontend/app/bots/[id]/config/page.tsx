@@ -14,7 +14,10 @@ const DEFAULT_CONFIG = (botId: string): BotConfig => ({
   version: 1,
   name: "new-config",
   description: "",
-  strategy: { strategy_id: "trend_v1", params: { lookback: 20 } },
+  strategy: {
+    strategy_id: "trend_v1",
+    params: { fast: 5, slow: 20, qty: 1000, min_cross_pct: 0.02, cooldown_ticks: 10 },
+  },
   risk: {
     max_position_notional: 5000,
     max_total_exposure: 20000,
@@ -50,6 +53,7 @@ function ConfigEditor() {
   const [cfg, setCfg] = useState<BotConfig>(() => DEFAULT_CONFIG(id));
   const [adapters, setAdapters] = useState<string[]>([]);
   const [strategies, setStrategies] = useState<string[]>([]);
+  const [paramSchema, setParamSchema] = useState<Record<string, unknown> | null>(null);
   const [active, setActive] = useState<ConfigVersion | null>(null);
   const [draft, setDraft] = useState<ConfigVersion | null>(null);
   const [diff, setDiff] = useState<DiffEntry[]>([]);
@@ -70,6 +74,30 @@ function ConfigEditor() {
       }
     })();
   }, [id]);
+
+  // Load the param schema whenever the selected strategy changes, so the UI
+  // can show allowed keys and offer a "restore defaults" affordance.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await api.strategyParamSchema(id, cfg.strategy.strategy_id);
+        if (!cancelled) setParamSchema(s);
+      } catch {
+        if (!cancelled) setParamSchema(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [id, cfg.strategy.strategy_id]);
+
+  async function onStrategyChange(strategyId: string) {
+    // When the user picks a new strategy, replace params with that strategy's
+    // defaults — otherwise stale keys from the previous strategy will fail
+    // validation.
+    let defaults: Record<string, unknown> = {};
+    try { defaults = await api.strategyParamSchema(id, strategyId); } catch { /* leave empty */ }
+    setCfg({ ...cfg, strategy: { strategy_id: strategyId, params: defaults } });
+  }
 
   const risky = useMemo(
     () => diff.some((c) => c.path.startsWith("broker.") || c.path.startsWith("risk.") || c.path === "strategy.strategy_id"),
@@ -142,13 +170,13 @@ function ConfigEditor() {
           <label>Strategy</label>
           {strategies.length > 0 ? (
             <select value={cfg.strategy.strategy_id}
-              onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
+              onChange={(e) => onStrategyChange(e.target.value)}
               style={{ width: "100%" }}>
               {strategies.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           ) : (
             <input value={cfg.strategy.strategy_id}
-              onChange={(e) => setCfg({ ...cfg, strategy: { ...cfg.strategy, strategy_id: e.target.value } })}
+              onChange={(e) => onStrategyChange(e.target.value)}
               style={{ width: "100%" }} />
           )}
           <label>Parameters (JSON)</label>
@@ -160,6 +188,15 @@ function ConfigEditor() {
             }}
             rows={5} style={{ width: "100%", fontFamily: "ui-monospace, Menlo, monospace" }}
           />
+          {paramSchema && (
+            <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
+              Allowed keys: <code>{Object.keys(paramSchema).join(", ")}</code>. Use <button
+                type="button"
+                style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", padding: 0, fontSize: 12 }}
+                onClick={() => setCfg({ ...cfg, strategy: { ...cfg.strategy, params: { ...paramSchema } } })}
+              >restore defaults</button> to reset.
+            </p>
+          )}
           <label>Symbols</label>
           <SymbolPicker
             selected={cfg.symbols}

@@ -38,8 +38,56 @@ def validate_bot_config(cfg: BotConfig) -> tuple[list[str], list[str]]:
     if not cfg.strategy.strategy_id:
         errors.append("strategy.strategy_id is required")
     else:
-        from app.strategies.registry import is_known_strategy
+        from app.strategies.registry import get_param_schema, is_known_strategy
         if not is_known_strategy(cfg.strategy.strategy_id):
             errors.append(f"unknown strategy_id: {cfg.strategy.strategy_id}")
+        else:
+            errors.extend(_validate_strategy_params(
+                cfg.strategy.strategy_id,
+                cfg.strategy.params,
+                get_param_schema(cfg.strategy.strategy_id),
+            ))
 
     return errors, warnings
+
+
+def _validate_strategy_params(
+    strategy_id: str,
+    params: dict,
+    schema: dict[str, object],
+) -> list[str]:
+    """Reject unknown keys and type-incompatible values for strategy params.
+
+    Numeric flexibility: ints satisfy floats (5 is a valid float).
+    Bool is intentionally NOT treated as a valid number.
+    """
+    errors: list[str] = []
+    if not schema:
+        return errors
+
+    for key, value in params.items():
+        if key not in schema:
+            allowed = ", ".join(sorted(schema.keys()))
+            errors.append(
+                f"strategy.params: unknown key '{key}' for {strategy_id} "
+                f"(allowed: {allowed})"
+            )
+            continue
+        expected = schema[key]
+        if not _value_matches_type(value, expected):
+            errors.append(
+                f"strategy.params.{key}: expected {type(expected).__name__}, "
+                f"got {type(value).__name__}"
+            )
+
+    return errors
+
+
+def _value_matches_type(value: object, default: object) -> bool:
+    if isinstance(default, bool):
+        return isinstance(value, bool)
+    if isinstance(default, int) and not isinstance(default, bool):
+        return isinstance(value, int) and not isinstance(value, bool)
+    if isinstance(default, float):
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return isinstance(value, type(default))

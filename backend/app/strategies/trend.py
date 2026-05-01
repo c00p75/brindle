@@ -33,6 +33,14 @@ def _sma(values: list[float], n: int) -> float | None:
 class TrendV1:
     id = "trend_v1"
 
+    PARAM_SCHEMA: dict[str, object] = {
+        "fast": 5,
+        "slow": 20,
+        "qty": 1000.0,
+        "min_cross_pct": 0.02,
+        "cooldown_ticks": 10,
+    }
+
     def __init__(self) -> None:
         self._ticks_since_trade: dict[str, int] = {}
 

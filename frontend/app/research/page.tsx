@@ -20,10 +20,13 @@ export default function ResearchPage() {
   );
 }
 
+const TREND_V1_DEFAULTS = { fast: 5, slow: 20, qty: 1000, min_cross_pct: 0.02, cooldown_ticks: 10 };
+
 function Research() {
   const [strategies, setStrategies] = useState<string[]>([]);
   const [strategyId, setStrategyId] = useState("trend_v1");
-  const [paramsText, setParamsText] = useState('{\n  "lookback": 20\n}');
+  const [paramsText, setParamsText] = useState(JSON.stringify(TREND_V1_DEFAULTS, null, 2));
+  const [probeBotId, setProbeBotId] = useState<string | null>(null);
   const [symbols, setSymbols] = useState<string[]>(["EUR/USD"]);
   const [bars, setBars] = useState(500);
   const [seed, setSeed] = useState("backtest-1");
@@ -41,6 +44,7 @@ function Research() {
         ]);
         setHistory(runs);
         if (bots.length > 0) {
+          setProbeBotId(bots[0].id);
           const strats = await api.listStrategies(bots[0].id);
           setStrategies(strats);
           if (strats.length > 0) setStrategyId(strats[0]);
@@ -50,6 +54,20 @@ function Research() {
       }
     })();
   }, []);
+
+  // Refresh defaults whenever the selected strategy changes, so users start
+  // from a known-good params shape instead of stale keys.
+  useEffect(() => {
+    if (!probeBotId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const schema = await api.strategyParamSchema(probeBotId, strategyId);
+        if (!cancelled) setParamsText(JSON.stringify(schema, null, 2));
+      } catch { /* keep current text */ }
+    })();
+    return () => { cancelled = true; };
+  }, [probeBotId, strategyId]);
 
   function toggleSymbol(sym: string) {
     if (symbols.includes(sym)) setSymbols(symbols.filter((s) => s !== sym));

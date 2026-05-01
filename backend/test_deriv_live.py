@@ -22,7 +22,7 @@ def main():
         "version": 1,
         "name": "deriv-cfg",
         "description": "test",
-        "strategy": {"strategy_id": "trend_v1", "params": {"lookback": 20}},
+        "strategy": {"strategy_id": "trend_v1", "params": {"fast": 5, "slow": 20, "qty": 1000, "min_cross_pct": 0.02, "cooldown_ticks": 10}},
         "risk": {
             "max_position_notional": 5000,
             "max_total_exposure": 20000,

@@ -18,6 +18,22 @@ def list_strategies() -> list[str]:
     return sorted(STRATEGY_REGISTRY.keys())
 
 
+def get_param_schema(strategy_id: str) -> dict[str, object]:
+    """Return the strategy's accepted params and their defaults.
+
+    Empty dict if the strategy is unknown or doesn't declare a schema.
+    """
+    cls = STRATEGY_REGISTRY.get(strategy_id)
+    if cls is None:
+        return {}
+    return dict(getattr(cls, "PARAM_SCHEMA", {}))
+
+
+def list_strategy_schemas() -> dict[str, dict[str, object]]:
+    """Return param schemas for every registered strategy."""
+    return {sid: get_param_schema(sid) for sid in list_strategies()}
+
+
 def create_strategy(strategy_id: str) -> Strategy:
     try:
         cls = STRATEGY_REGISTRY[strategy_id]

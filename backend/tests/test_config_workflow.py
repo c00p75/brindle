@@ -7,7 +7,7 @@ def make_config(bot_id: str) -> dict:
         "version": 1,  # server will override
         "name": "fx-test",
         "description": "test bot",
-        "strategy": {"strategy_id": "trend_v1", "params": {"lookback": 20}},
+        "strategy": {"strategy_id": "trend_v1", "params": {"fast": 5, "slow": 20}},
         "risk": {
             "max_position_notional": 5000,
             "max_total_exposure": 20000,
@@ -106,3 +106,42 @@ def test_invalid_config_rejected_by_validation(client, admin_token):
     r = client.post(f"/api/bots/{bot_id}/configs/{v}/validate", headers=auth_headers(admin_token))
     assert r.json()["status"] == "draft"
     assert r.json()["validation_errors"]
+
+
+def test_unknown_strategy_param_is_rejected(client, admin_token):
+    """Regression: a bot was running with `{lookback: 20}` for trend_v1, which
+    the strategy silently ignored — so the bot ran but never traded. Unknown
+    keys must now fail validation."""
+    r = client.post("/api/bots", json={"name": "delta"}, headers=auth_headers(admin_token))
+    bot_id = r.json()["id"]
+    bad = make_config(bot_id)
+    bad["strategy"]["params"] = {"lookback": 20}
+    r = client.post(f"/api/bots/{bot_id}/configs", json=bad, headers=auth_headers(admin_token))
+    v = r.json()["version"]
+    r = client.post(f"/api/bots/{bot_id}/configs/{v}/validate", headers=auth_headers(admin_token))
+    errors = r.json()["validation_errors"]
+    assert any("lookback" in e for e in errors), errors
+
+
+def test_strategy_param_type_mismatch_is_rejected(client, admin_token):
+    r = client.post("/api/bots", json={"name": "epsilon"}, headers=auth_headers(admin_token))
+    bot_id = r.json()["id"]
+    bad = make_config(bot_id)
+    bad["strategy"]["params"] = {"fast": "five", "slow": 20}  # fast must be int
+    r = client.post(f"/api/bots/{bot_id}/configs", json=bad, headers=auth_headers(admin_token))
+    v = r.json()["version"]
+    r = client.post(f"/api/bots/{bot_id}/configs/{v}/validate", headers=auth_headers(admin_token))
+    errors = r.json()["validation_errors"]
+    assert any("fast" in e for e in errors), errors
+
+
+def test_strategy_param_schema_endpoint(client, admin_token):
+    r = client.post("/api/bots", json={"name": "zeta"}, headers=auth_headers(admin_token))
+    bot_id = r.json()["id"]
+    r = client.get(
+        f"/api/bots/{bot_id}/configs/strategies/trend_v1/params",
+        headers=auth_headers(admin_token),
+    )
+    assert r.status_code == 200
+    schema = r.json()
+    assert set(schema.keys()) == {"fast", "slow", "qty", "min_cross_pct", "cooldown_ticks"}

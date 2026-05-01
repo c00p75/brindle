@@ -67,6 +67,15 @@ class DerivV1:
 
     id = "deriv_v1"
 
+    PARAM_SCHEMA: dict[str, object] = {
+        "sma_period": 14,
+        "rsi_period": 14,
+        "rsi_overbought": 70.0,
+        "rsi_oversold": 30.0,
+        "stake": 10.0,
+        "cooldown_ticks": 60,
+    }
+
     def __init__(self) -> None:
         # Per-symbol tick counter since last trade (cooldown tracking).
         self._ticks_since_trade: dict[str, int] = {}

@@ -164,6 +164,9 @@ export const api = {
   listStrategies(botId: string): Promise<string[]> {
     return request(`/api/bots/${botId}/configs/strategies`);
   },
+  strategyParamSchema(botId: string, strategyId: string): Promise<Record<string, unknown>> {
+    return request(`/api/bots/${botId}/configs/strategies/${strategyId}/params`);
+  },
   runBacktest(body: BacktestRequest): Promise<BacktestMetrics> {
     return request("/api/research/backtest", { method: "POST", body: JSON.stringify(body) });
   },

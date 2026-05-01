@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.adapters.brokers.registry import list_adapters
-from app.strategies.registry import list_strategies
+from app.strategies.registry import get_param_schema, list_strategies
 from app.auth.deps import require
 from app.auth.models import User
 from app.bots import service as bot_service
@@ -31,6 +31,22 @@ async def available_adapters(bot_id: str, _: User = Depends(require("config:read
 async def available_strategies(bot_id: str, _: User = Depends(require("config:read"))) -> list[str]:
     bot_service.get(bot_id) or _not_found()
     return list_strategies()
+
+
+@router.get("/strategies/{strategy_id}/params")
+async def strategy_params(
+    bot_id: str, strategy_id: str, _: User = Depends(require("config:read"))
+) -> dict[str, object]:
+    """Return the param schema (name → default) for a strategy.
+
+    Used by the config UI to render sensible defaults when a user picks a
+    strategy, instead of leaving them to guess key names.
+    """
+    bot_service.get(bot_id) or _not_found()
+    schema = get_param_schema(strategy_id)
+    if not schema:
+        raise HTTPException(404, f"unknown strategy or no schema: {strategy_id}")
+    return schema
 
 
 @router.get("")
