@@ -30,8 +30,30 @@ async def lifespan(app: FastAPI):
     configure_logging()
     init_db()
     seed_default_users()
+    await _resume_running_bots()
     yield
     await get_runtime_manager().stop_all()
+
+
+async def _resume_running_bots() -> None:
+    """Re-attach runtime loops for bots that were running before a restart.
+
+    The runtime manager is in-memory only. Any bot persisted as RUNNING needs
+    its loop re-spawned on startup, otherwise it shows as live in the UI but
+    never processes ticks.
+    """
+    import logging
+    log = logging.getLogger("startup")
+    from app.bots.models import BotState
+    from app.bots.service import list_bots
+    mgr = get_runtime_manager()
+    for bot in list_bots():
+        if bot.state == BotState.RUNNING:
+            try:
+                await mgr.start(bot)
+                log.info("auto-resumed bot=%s name=%s", bot.id, bot.name)
+            except Exception as exc:  # noqa: BLE001
+                log.error("failed to auto-resume bot=%s: %s", bot.id, exc)
 
 
 def create_app() -> FastAPI:
