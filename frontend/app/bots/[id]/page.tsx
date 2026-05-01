@@ -160,8 +160,10 @@ function BotDetails() {
   const totalTrades = fills.length;
 
   return (
-    <>
-      {/* Header */}
+    <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      {/* Main Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Header */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
@@ -234,14 +236,8 @@ function BotDetails() {
       </div>
 
       {/* Strategy monitor panel */}
-      <StrategyPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        ticks={ticks}
-        botState={bot.state}
-        sseConnected={sseConnected}
-      />
-
+      {/* Moved outside the main content column */}
+      
       {/* Stats Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
         <StatCard label="Realized PnL" value={`${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}`} color={totalPnl >= 0 ? "#008265" : "#cc2626"} />
@@ -525,7 +521,17 @@ function BotDetails() {
           to   { transform: translateX(0);    opacity: 1; }
         }
       `}</style>
-    </>
+      </div>
+
+      {/* Strategy Monitor Sidegrid */}
+      <StrategyPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        ticks={ticks}
+        botState={bot.state}
+        sseConnected={sseConnected}
+      />
+    </div>
   );
 }
 
@@ -565,22 +571,18 @@ function StrategyPanel({
 
   return (
     <>
-      {/* Backdrop (mobile) */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed", inset: 0, zIndex: 999,
-          background: "rgba(0,0,0,0.15)",
-        }}
-      />
       {/* Panel */}
       <div style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 1000,
-        width: 340, background: "#fff",
-        boxShadow: "-4px 0 24px rgba(0,0,0,0.12)",
+        width: 340, flexShrink: 0,
+        background: "#fff",
+        border: "1px solid #e8eaeb",
+        borderRadius: 8,
         display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        position: "sticky",
+        top: 24,
+        maxHeight: "calc(100vh - 48px)",
         animation: "slideIn 0.22s ease",
-        overflowY: "auto",
       }}>
         {/* Panel header */}
         <div style={{
@@ -613,7 +615,7 @@ function StrategyPanel({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ flex: 1, padding: "16px 20px", display: "flex", flexDirection: "column", gap: 20, overflowY: "auto" }}>
           {botState !== "running" ? (
             <div style={{ textAlign: "center", padding: "32px 0", color: "#aaaaaa" }}>
               <div style={{ fontSize: 28, marginBottom: 12 }}>⏹</div>
