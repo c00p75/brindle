@@ -96,7 +96,17 @@ def get_runtime_manager() -> RuntimeManager:
 async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     """Single bot tick loop. Runs until cancelled, fatal error, or auto-pause."""
     adapter = create_adapter(cfg.broker)
-    await adapter.connect()
+    try:
+        await adapter.connect()
+    except Exception as e:
+        log.error("runtime startup failed bot=%s (connect): %s", bot.id, e)
+        emit_alert(
+            severity=Severity.CRITICAL,
+            source="runtime",
+            message=f"adapter connect failed: {type(e).__name__}: {e}",
+            bot_id=bot.id,
+        )
+        return
 
     source = build_source(
         bot_id=bot.id,
@@ -104,8 +114,19 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
         adapter=adapter,
         symbol_namespace=cfg.broker.symbol_namespace,
     )
-    for symbol in cfg.symbols:
-        await source.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
+    try:
+        for symbol in cfg.symbols:
+            await source.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
+    except Exception as e:
+        log.error("runtime startup failed bot=%s (warm_up): %s", bot.id, e)
+        emit_alert(
+            severity=Severity.CRITICAL,
+            source="runtime",
+            message=f"warm_up failed: {type(e).__name__}: {e}",
+            bot_id=bot.id,
+        )
+        await adapter.close()
+        return
 
     strategy = create_strategy(cfg.strategy.strategy_id)
     risk = RiskEngine(cfg.risk)
