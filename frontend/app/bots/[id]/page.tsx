@@ -34,7 +34,7 @@ function BotDetails() {
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const [tab, setTab] = useState<"activity" | "config" | "audit">("activity");
   const [sseConnected, setSseConnected] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(true);
   const [ticks, setTicks] = useState<Record<string, TickEvent>>({});
   const sseRef = useRef<EventSource | null>(null);
 
