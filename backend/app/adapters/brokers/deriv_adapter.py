@@ -56,13 +56,15 @@ class DerivAdapter:
     id = "deriv"
 
     def __init__(self, config: BrokerConfig) -> None:
+        import os
+
         from app.secrets.resolver import resolve
 
         self.config = config
         self._api_key = resolve(config.credential_ref)
         self._account_id = config.account_id
-        # app_id in BrokerConfig.app_id; fall back to Deriv's public demo id.
-        self._app_id = config.app_id or "1089"
+        # Resolution order: explicit config > DERIV_APP_ID env > public default 1089.
+        self._app_id = config.app_id or os.environ.get("DERIV_APP_ID") or "1089"
         # Default contract duration from BrokerConfig.extra, e.g. {"duration": 5, "duration_unit": "m"}
         self._default_duration: int = int(config.extra.get("duration", 5))
         self._default_duration_unit: str = str(config.extra.get("duration_unit", "m"))

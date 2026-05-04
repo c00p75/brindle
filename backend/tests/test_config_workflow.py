@@ -98,8 +98,8 @@ def test_invalid_config_rejected_by_validation(client, admin_token):
     r = client.post("/api/bots", json={"name": "gamma"}, headers=auth_headers(admin_token))
     bot_id = r.json()["id"]
     bad = make_config(bot_id)
-    # oanda namespace does not map BTC/USDT — validation must fail
-    bad["broker"]["symbol_namespace"] = "oanda"
+    # deriv namespace does not map BTC/USDT — validation must fail
+    bad["broker"]["symbol_namespace"] = "deriv"
     bad["symbols"] = ["BTC/USDT"]
     r = client.post(f"/api/bots/{bot_id}/configs", json=bad, headers=auth_headers(admin_token))
     v = r.json()["version"]

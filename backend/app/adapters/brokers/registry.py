@@ -2,15 +2,12 @@ from __future__ import annotations
 
 from app.adapters.brokers.base import BrokerAdapter, BrokerConfig
 from app.adapters.brokers.deriv_adapter import DerivAdapter
-from app.adapters.brokers.oanda_adapter import OandaAdapter
 from app.adapters.brokers.paper_adapter import PaperAdapter
 
 # Canonical adapter IDs. Unknown ids must fail validation.
 ADAPTER_REGISTRY: dict[str, type[BrokerAdapter]] = {
     "paper": PaperAdapter,
-    "oanda": OandaAdapter,
     "deriv": DerivAdapter,
-    # "mt5":   MT5Adapter,     # future
 }
 
 
@@ -33,9 +30,7 @@ def adapter_class(adapter_id: str) -> type[BrokerAdapter]:
 # platform-wide while PAPER_TRADING_ONLY is set.
 ALLOWED_ENVIRONMENTS: dict[str, set[str]] = {
     "paper": {"paper"},
-    "oanda": {"demo", "practice"},
     "deriv": {"demo"},
-    "mt5": {"demo"},
 }
 
 

@@ -41,39 +41,6 @@ PAPER_NAMESPACE = SymbolMapper(
     },
 )
 
-OANDA_NAMESPACE = SymbolMapper(
-    "oanda",
-    {
-        # Major forex pairs
-        "EUR/USD": "EUR_USD",
-        "GBP/USD": "GBP_USD",
-        "USD/JPY": "USD_JPY",
-        "USD/CHF": "USD_CHF",
-        "AUD/USD": "AUD_USD",
-        "USD/CAD": "USD_CAD",
-        "NZD/USD": "NZD_USD",
-        # Cross pairs
-        "EUR/GBP": "EUR_GBP",
-        "EUR/JPY": "EUR_JPY",
-        "GBP/JPY": "GBP_JPY",
-        "AUD/JPY": "AUD_JPY",
-        "EUR/CHF": "EUR_CHF",
-        # Metals
-        "XAU/USD": "XAU_USD",
-        "XAG/USD": "XAG_USD",
-        # Equity indices
-        "US30/USD": "US30_USD",
-        "SPX500/USD": "SPX500_USD",
-        "NAS100/USD": "NAS100_USD",
-        "UK100/GBP": "UK100_GBP",
-        "DE30/EUR": "DE30_EUR",
-        "JP225/USD": "JP225_USD",
-        # Commodities
-        "WTICO/USD": "WTICO_USD",
-        "BCO/USD": "BCO_USD",
-    },
-)
-
 DERIV_NAMESPACE = SymbolMapper(
     "deriv",
     {
@@ -100,7 +67,6 @@ DERIV_NAMESPACE = SymbolMapper(
 
 NAMESPACES: dict[str, SymbolMapper] = {
     "paper": PAPER_NAMESPACE,
-    "oanda": OANDA_NAMESPACE,
     "deriv": DERIV_NAMESPACE,
 }
 

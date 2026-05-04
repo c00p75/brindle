@@ -27,13 +27,13 @@ const DEFAULT_CONFIG = (botId: string): BotConfig => ({
     kill_switch: false,
   },
   broker: {
-    type: "oanda",
-    environment: "practice",
+    type: "deriv",
+    environment: "demo",
     account_id: "",
-    credential_ref: "secret://env/OANDA_API_TOKEN",
-    symbol_namespace: "oanda",
+    credential_ref: "secret://env/DERIV_API_TOKEN",
+    symbol_namespace: "deriv",
   },
-  symbols: ["EUR/USD"],
+  symbols: ["V75/USD"],
 });
 
 export default function ConfigEditorPage() {
@@ -348,12 +348,10 @@ function ConfigEditor() {
 }
 
 const PAPER_SYMBOLS = ["EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF", "NZD/USD", "EUR/GBP"];
-const OANDA_SYMBOLS = [
-  "EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD",
-  "EUR/GBP", "EUR/JPY", "GBP/JPY", "AUD/JPY", "EUR/CHF",
-  "XAU/USD", "XAG/USD",
-  "US30/USD", "SPX500/USD", "NAS100/USD", "UK100/GBP", "DE30/EUR", "JP225/USD",
-  "WTICO/USD", "BCO/USD",
+const DERIV_SYMBOLS = [
+  "EUR/USD", "GBP/USD", "USD/JPY", "AUD/USD", "USD/CAD", "USD/CHF",
+  "V10/USD", "V25/USD", "V50/USD", "V75/USD", "V100/USD",
+  "BOOM1000/USD", "BOOM500/USD", "CRASH1000/USD", "CRASH500/USD",
 ];
 
 function SymbolPicker({ selected, onChange, namespace }: {
@@ -362,7 +360,7 @@ function SymbolPicker({ selected, onChange, namespace }: {
   namespace: string;
 }) {
   const [custom, setCustom] = useState("");
-  const presets = namespace === "paper" ? PAPER_SYMBOLS : namespace === "oanda" ? OANDA_SYMBOLS : [];
+  const presets = namespace === "paper" ? PAPER_SYMBOLS : namespace === "deriv" ? DERIV_SYMBOLS : [];
 
   function toggle(sym: string) {
     if (selected.includes(sym)) onChange(selected.filter((s) => s !== sym));

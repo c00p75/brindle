@@ -42,24 +42,23 @@ def test_factory_rejects_unknown_type():
 
 def test_validate_broker_config_requires_secret_ref_for_real_brokers():
     errs = validate_broker_config(BrokerConfig(
-        type="oanda",
+        type="deriv",
         environment="demo",
         account_id="a",
         credential_ref="inline-secret",
-        symbol_namespace="oanda",
+        symbol_namespace="deriv",
     ))
-    # Registry may not have oanda wired yet; that should error first.
-    assert any("unknown adapter" in e or "secret reference" in e for e in errs)
+    assert any("secret reference" in e for e in errs)
 
 
 def test_symbol_mapper_canonical_roundtrip():
-    m = get_mapper("oanda")
-    assert m.to_native("EUR/USD") == "EUR_USD"
-    assert m.to_canonical("EUR_USD") == "EUR/USD"
+    m = get_mapper("deriv")
+    assert m.to_native("EUR/USD") == "frxEURUSD"
+    assert m.to_canonical("frxEURUSD") == "EUR/USD"
 
 
 def test_symbol_mapper_rejects_unmapped():
-    m = get_mapper("oanda")
+    m = get_mapper("deriv")
     with pytest.raises(ValueError):
         m.to_native("XYZ/ABC")
 

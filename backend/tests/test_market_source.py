@@ -131,12 +131,12 @@ def test_build_source_paper_returns_synthetic():
     assert isinstance(src, SyntheticSource)
 
 
-def test_build_source_oanda_returns_live():
+def test_build_source_deriv_returns_live():
     adapter = MagicMock()
-    src = build_source("bot_x", "oanda", adapter, "oanda")
+    src = build_source("bot_x", "deriv", adapter, "deriv")
     assert isinstance(src, LiveAdapterSource)
 
 
 def test_build_source_no_adapter_returns_synthetic():
-    src = build_source("bot_x", "oanda", None, "oanda")
+    src = build_source("bot_x", "deriv", None, "deriv")
     assert isinstance(src, SyntheticSource)
