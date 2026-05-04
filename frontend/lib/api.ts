@@ -8,6 +8,8 @@ import type {
   Bot,
   BotConfig,
   ConfigVersion,
+  Contract,
+  ContractsSummary,
   DiffEntry,
   Fill,
   Order,
@@ -150,6 +152,12 @@ export const api = {
   },
   listFills(botId: string, limit = 50): Promise<Fill[]> {
     return request(`/api/bots/${botId}/fills?limit=${limit}`);
+  },
+  listContracts(botId: string, limit = 50): Promise<Contract[]> {
+    return request(`/api/bots/${botId}/contracts?limit=${limit}`);
+  },
+  contractsSummary(botId: string): Promise<ContractsSummary> {
+    return request(`/api/bots/${botId}/contracts/summary`);
   },
   listAudit(resourceId?: string): Promise<AuditEvent[]> {
     const q = resourceId ? `?resource_id=${encodeURIComponent(resourceId)}` : "";

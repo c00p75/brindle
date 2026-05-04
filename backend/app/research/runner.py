@@ -59,6 +59,8 @@ class BacktestManifest:
     seed: str = "backtest"
     risk: dict[str, Any] = field(default_factory=dict)
     run_id: str = field(default_factory=lambda: new_id("run"))
+    # "synthetic" (default, deterministic) | "deriv" (fetches real history)
+    data_source: str = "synthetic"
 
 
 @dataclass
@@ -100,7 +102,12 @@ class BacktestMetrics:
 def run_backtest(manifest: BacktestManifest, output_dir: Path | None = None) -> BacktestMetrics:
     """Execute a backtest synchronously.  No DB writes; pure in-memory simulation."""
     strategy = create_strategy(manifest.strategy_id)
-    feed = SyntheticFeed(bot_id=manifest.seed, symbol_namespace="paper")
+    if manifest.data_source == "deriv":
+        from app.research.deriv_history import DerivHistoricalFeed
+        # +50 to cover warm-up consumed before the simulated bars start
+        feed = DerivHistoricalFeed.from_deriv(*manifest.symbols, count=manifest.bars + 100)
+    else:
+        feed = SyntheticFeed(bot_id=manifest.seed, symbol_namespace="paper")
 
     risk_cfg = RiskLimits(
         max_position_notional=manifest.risk.get("max_position_notional", 1_000_000),

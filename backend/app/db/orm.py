@@ -129,6 +129,31 @@ class PositionRow(Base):
     updated_at_ms: Mapped[int] = mapped_column(BigInteger)
 
 
+class ContractRow(Base):
+    """Lifecycle of a Deriv binary-option contract.
+
+    Unlike forex positions (units × price), each Deriv contract is a fixed-stake
+    bet that resolves to either `payout` (won) or 0 (lost). This row tracks one
+    contract from purchase through expiry.
+    """
+    __tablename__ = "contracts"
+
+    contract_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    bot_id: Mapped[str] = mapped_column(String(64), index=True)
+    client_order_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    contract_type: Mapped[str] = mapped_column(String(16))  # CALL | PUT
+    stake: Mapped[float] = mapped_column()
+    expected_payout: Mapped[float] = mapped_column(default=0.0)
+    purchase_price: Mapped[float] = mapped_column(default=0.0)
+    payout_received: Mapped[float | None] = mapped_column(nullable=True)
+    pnl: Mapped[float | None] = mapped_column(nullable=True)
+    status: Mapped[str] = mapped_column(String(16), index=True, default="open")  # open | won | lost
+    purchased_at_ms: Mapped[int] = mapped_column(BigInteger, index=True)
+    expires_at_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    settled_at_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
 class AlertRow(Base):
     __tablename__ = "alerts"
 

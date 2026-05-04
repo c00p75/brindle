@@ -114,6 +114,24 @@ async def fills(bot_id: str, limit: int = 100, _: User = Depends(require("bot:re
     return exec_persistence.list_fills(bot_id, limit=limit)
 
 
+@router.get("/{bot_id}/contracts")
+async def contracts(bot_id: str, limit: int = 50, _: User = Depends(require("bot:read"))) -> list[dict]:
+    """Recent Deriv binary-option contracts with stake/payout/status."""
+    from app.execution import contracts as contracts_svc
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    return contracts_svc.list_recent(bot_id, limit=limit)
+
+
+@router.get("/{bot_id}/contracts/summary")
+async def contracts_summary(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
+    """Authoritative P&L summary for Deriv binary-option bots."""
+    from app.execution import contracts as contracts_svc
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    return contracts_svc.summary(bot_id)
+
+
 @router.get("/{bot_id}/active-config")
 async def active_config(bot_id: str, _: User = Depends(require("config:read"))):
     bot = bot_service.get(bot_id)

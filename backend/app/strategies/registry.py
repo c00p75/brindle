@@ -1,13 +1,64 @@
 from __future__ import annotations
 
+import importlib
+import logging
+import pkgutil
+from pathlib import Path
+
 from app.strategies.base import Strategy
+from app.strategies.bollinger import BollingerV1
 from app.strategies.deriv import DerivV1
+from app.strategies.macd import MacdV1
 from app.strategies.trend import TrendV1
+
+log = logging.getLogger("strategies")
 
 STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "trend_v1": TrendV1,
     "deriv_v1": DerivV1,
+    "bollinger_v1": BollingerV1,
+    "macd_v1": MacdV1,
 }
+
+
+def _load_user_plugins() -> None:
+    """Discover any user-supplied strategies in app/strategies/user/ and register them.
+
+    A plugin is a module that defines one or more classes with `id: str` (string
+    constant) and `PARAM_SCHEMA: dict`. It must also implement `on_data(ctx)`
+    and ideally `debug_state(ctx)`. Drop a file in app/strategies/user/ and
+    restart the backend — no further registration required.
+
+    Failures during plugin import are logged but do not block startup; a
+    broken plugin must not bring down the platform.
+    """
+    user_dir = Path(__file__).parent / "user"
+    if not user_dir.is_dir():
+        return
+    for mod_info in pkgutil.iter_modules([str(user_dir)]):
+        full = f"app.strategies.user.{mod_info.name}"
+        try:
+            mod = importlib.import_module(full)
+        except Exception as e:  # noqa: BLE001
+            log.warning("plugin import failed %s: %s", full, e)
+            continue
+        for attr in dir(mod):
+            obj = getattr(mod, attr)
+            if not isinstance(obj, type):
+                continue
+            sid = getattr(obj, "id", None)
+            if not isinstance(sid, str):
+                continue
+            if not callable(getattr(obj, "on_data", None)):
+                continue
+            if sid in STRATEGY_REGISTRY:
+                log.warning("plugin %s tried to override built-in strategy %r", full, sid)
+                continue
+            STRATEGY_REGISTRY[sid] = obj
+            log.info("registered user strategy %s from %s", sid, full)
+
+
+_load_user_plugins()
 
 
 def is_known_strategy(strategy_id: str) -> bool:

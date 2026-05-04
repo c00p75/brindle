@@ -157,6 +157,33 @@ export interface Fill {
   filled_at_ms: number;
 }
 
+export interface Contract {
+  contract_id: string;
+  bot_id: string;
+  symbol: string;
+  contract_type: "CALL" | "PUT" | string;
+  stake: number;
+  expected_payout: number;
+  purchase_price: number;
+  payout_received: number | null;
+  pnl: number | null;
+  status: "open" | "won" | "lost";
+  purchased_at_ms: number;
+  expires_at_ms: number | null;
+  settled_at_ms: number | null;
+}
+
+export interface ContractsSummary {
+  open_count: number;
+  won_count: number;
+  lost_count: number;
+  total_count: number;
+  total_staked: number;
+  total_payout: number;
+  realized_pnl: number;
+  win_rate: number;
+}
+
 export interface BacktestRequest {
   strategy_id: string;
   params: Record<string, unknown>;

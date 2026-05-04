@@ -2,6 +2,7 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _UNSAFE_JWT_SECRET = "change-me-please-long-random-string"
+_UNSAFE_ADMIN_PASSWORDS = {"changeme", "admin", "password", "12345"}
 
 
 class Settings(BaseSettings):
@@ -10,7 +11,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     jwt_secret: str = _UNSAFE_JWT_SECRET
     jwt_algo: str = "HS256"
-    jwt_expire_minutes: int = 60
+    jwt_expire_minutes: int = 480  # 8 hours — fewer "signature expired" interruptions
 
     super_admin_email: str = "admin@example.com"
     super_admin_password: str = "changeme"
@@ -42,5 +43,11 @@ def get_settings() -> Settings:
         raise RuntimeError(
             "JWT_SECRET is still the default placeholder. "
             "Set a strong random secret via the JWT_SECRET env var before deploying."
+        )
+    # Refuse to start in production with a known-weak admin password.
+    if s.app_env != "development" and s.super_admin_password.lower() in _UNSAFE_ADMIN_PASSWORDS:
+        raise RuntimeError(
+            "SUPER_ADMIN_PASSWORD is set to a known-weak default. "
+            "Set a strong password via the SUPER_ADMIN_PASSWORD env var before deploying."
         )
     return s

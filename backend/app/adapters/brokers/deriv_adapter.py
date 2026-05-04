@@ -130,8 +130,25 @@ class DerivAdapter:
                     fut.set_exception(ConnectionError(f"connection lost: {exc}"))
             self._pending.clear()
 
+    async def _ensure_connected(self) -> None:
+        """Reconnect if the WS dropped. Idempotent — safe to call before any send."""
+        if self._connected and self._ws is not None:
+            return
+        log.info("deriv reconnecting account=%s", self._account_id)
+        backoff = 1.0
+        for attempt in range(5):
+            try:
+                await self.connect()
+                return
+            except Exception as e:  # noqa: BLE001
+                log.warning("deriv reconnect attempt %d failed: %s", attempt + 1, e)
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 15.0)
+        raise ConnectionError("deriv reconnect failed after 5 attempts")
+
     async def _send(self, payload: dict) -> dict:
-        """Send a request and await its response by req_id."""
+        """Send a request and await its response by req_id. Auto-reconnects on drop."""
+        await self._ensure_connected()
         if self._ws is None:
             raise ConnectionError("adapter not connected")
         req_id = self._next_req_id()
@@ -371,10 +388,27 @@ class DerivAdapter:
         contract_id = buy_data.get("contract_id")
         if contract_id:
             buy_price = float(buy_data.get("buy_price", stake))
+            payout = float(proposal_resp.get("proposal", {}).get("payout", 0.0))
+            expires_at_ms = int(buy_data.get("date_expiry", 0)) * 1000 or None
             log.info(
-                "deriv contract bought id=%s symbol=%s stake=%.2f price=%.2f",
-                contract_id, intent.symbol, stake, buy_price,
+                "deriv contract bought id=%s symbol=%s stake=%.2f price=%.2f payout=%.2f",
+                contract_id, intent.symbol, stake, buy_price, payout,
             )
+            from app.execution import contracts as contracts_svc
+            try:
+                contracts_svc.record_purchase(
+                    bot_id=intent.bot_id,
+                    contract_id=str(contract_id),
+                    client_order_id=intent.client_order_id,
+                    symbol=intent.symbol,
+                    contract_type=contract_type,
+                    stake=stake,
+                    expected_payout=payout,
+                    purchase_price=buy_price,
+                    expires_at_ms=expires_at_ms,
+                )
+            except Exception as e:  # noqa: BLE001
+                log.warning("contract persistence failed id=%s: %s", contract_id, e)
             return ExecutionResult(
                 status=ExecutionStatus.FILLED,
                 broker_order_id=str(contract_id),
@@ -409,3 +443,31 @@ class DerivAdapter:
         except Exception as exc:
             log.warning("deriv cancel_order error id=%s err=%s", broker_order_id, exc)
             return False
+
+    async def get_contract_status(self, contract_id: str) -> dict | None:
+        """Query a contract's current state. Used by runtime to detect settlement.
+
+        Returns a dict with at least:
+          { is_sold: bool, status: "open"|"won"|"lost", payout: float, profit: float }
+        or None if the request failed.
+        """
+        if self._ws is None:
+            return None
+        try:
+            resp = await self._send({"proposal_open_contract": 1, "contract_id": int(contract_id)})
+        except Exception as exc:
+            log.warning("deriv get_contract_status error id=%s err=%s", contract_id, exc)
+            return None
+        if "error" in resp:
+            return None
+        c = resp.get("proposal_open_contract", {})
+        is_sold = bool(c.get("is_sold", 0))
+        if not is_sold:
+            return {"is_sold": False, "status": "open", "payout": 0.0, "profit": 0.0}
+        # Settled: status is "won" or "lost" per Deriv schema
+        return {
+            "is_sold": True,
+            "status": c.get("status", "lost"),
+            "payout": float(c.get("payout", 0.0)),
+            "profit": float(c.get("profit", 0.0)),
+        }

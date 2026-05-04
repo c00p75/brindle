@@ -1,0 +1,7 @@
+# Drop your custom strategy files in this directory.
+# Each file should contain a class with:
+#   - id: str (unique strategy id)
+#   - PARAM_SCHEMA: dict (default params)
+#   - on_data(ctx) -> list[OrderIntent]
+#   - debug_state(ctx) -> dict (optional, for live UI panel)
+# See app/strategies/bollinger.py or trend.py as references.

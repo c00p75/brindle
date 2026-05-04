@@ -33,6 +33,8 @@ log = logging.getLogger("runtime")
 
 # Tunable. Kept short for snappy paper trading; real adapters would tune higher.
 TICK_INTERVAL_S = 1.0
+# Sweep open contracts for settlement every N ticks (~10s with 1s tick).
+CONTRACT_POLL_INTERVAL = 10
 
 
 @dataclass
@@ -139,11 +141,20 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
 
     consecutive_risk_rejects = 0
     _stale_alerted: set[str] = set()
+    tick_count = 0
     log.info("runtime started bot=%s strategy=%s symbols=%s source=%s",
              bot.id, strategy.id, cfg.symbols, type(source).__name__)
 
     try:
         while True:
+            tick_count += 1
+            # Every CONTRACT_POLL_INTERVAL ticks, sweep open contracts for settlement.
+            if tick_count % CONTRACT_POLL_INTERVAL == 0:
+                await _poll_contracts(bot.id, adapter)
+                # Drawdown auto-stop check uses authoritative contract P&L.
+                if await _drawdown_breached(bot, cfg):
+                    return
+
             for symbol in cfg.symbols:
                 # Staleness guard — NOOP and alert on first detection
                 if source.is_stale(symbol):
@@ -225,6 +236,73 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             await adapter.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+async def _poll_contracts(bot_id: str, adapter) -> None:
+    """Settle Deriv contracts that have expired since last poll.
+
+    Best-effort — silently skips adapters that don't expose contract status
+    (paper, future non-options brokers).
+    """
+    get_status = getattr(adapter, "get_contract_status", None)
+    if get_status is None:
+        return
+    from app.execution import contracts as contracts_svc
+    open_ids = contracts_svc.list_open_ids(bot_id)
+    for cid in open_ids:
+        try:
+            status = await get_status(cid)
+        except Exception as e:  # noqa: BLE001
+            log.warning("contract poll failed bot=%s id=%s: %s", bot_id, cid, e)
+            continue
+        if status is None or not status.get("is_sold"):
+            continue
+        outcome = status.get("status", "lost")
+        # Deriv reports "won" or "lost"; anything else is treated as lost.
+        normalized = "won" if outcome == "won" else "lost"
+        contracts_svc.settle(
+            contract_id=cid,
+            payout_received=status.get("payout", 0.0),
+            status=normalized,
+        )
+        log.info("contract settled bot=%s id=%s status=%s payout=%.2f profit=%.2f",
+                 bot_id, cid, normalized, status.get("payout", 0.0), status.get("profit", 0.0))
+
+
+async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
+    """Auto-pause if realized losses exceed daily_loss or max_drawdown_pct.
+
+    Returns True if the bot should stop. Authoritative source is the contract
+    table for Deriv bots (real settled P&L), positions.realized_pnl otherwise.
+    """
+    from app.execution import contracts as contracts_svc
+
+    # Daily loss check — sum of negative realized PnL today
+    summary = contracts_svc.summary(bot.id)
+    realized = summary["realized_pnl"]
+    daily_loss = -realized if realized < 0 else 0.0
+
+    breached = False
+    reason = ""
+    if cfg.risk.max_daily_loss > 0 and daily_loss >= cfg.risk.max_daily_loss:
+        breached = True
+        reason = f"daily loss ${daily_loss:.2f} >= limit ${cfg.risk.max_daily_loss:.2f}"
+
+    if breached:
+        emit_alert(
+            severity=Severity.CRITICAL,
+            source="runtime",
+            message=f"auto-pausing bot — drawdown limit hit: {reason}",
+            bot_id=bot.id,
+        )
+        log.warning("drawdown auto-stop bot=%s: %s", bot.id, reason)
+        from app.bots import service as bot_service
+        try:
+            bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+    return False
 
 
 def _publish_tick(bot_id: str, strategy: object, ctx: StrategyContext, bar: object) -> None:

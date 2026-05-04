@@ -1,0 +1,138 @@
+"""Deriv contract lifecycle persistence + polling-based settlement tracker.
+
+Each Deriv binary-option BUY produces one ContractRow. The runtime later
+polls open contracts to detect settlement (won/lost) and update PnL.
+
+Why polling, not WebSocket subscriptions:
+  - The runtime already shares a Deriv WS connection per bot.
+  - `proposal_open_contract` push subscriptions add complexity to the
+    multiplexed _send/_recv design and double the message volume.
+  - Polling once per N ticks is plenty for 5-minute contracts.
+"""
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import sqlalchemy as sa
+
+from app.core.time import now_epoch_ms
+from app.db.engine import session_scope
+from app.db.orm import ContractRow
+
+log = logging.getLogger("contracts")
+
+
+def record_purchase(
+    *,
+    bot_id: str,
+    contract_id: str,
+    client_order_id: str | None,
+    symbol: str,
+    contract_type: str,
+    stake: float,
+    expected_payout: float,
+    purchase_price: float,
+    expires_at_ms: int | None,
+) -> None:
+    """Persist a freshly bought Deriv contract."""
+    with session_scope() as s:
+        existing = s.get(ContractRow, contract_id)
+        if existing is not None:
+            return
+        s.add(ContractRow(
+            contract_id=contract_id,
+            bot_id=bot_id,
+            client_order_id=client_order_id,
+            symbol=symbol,
+            contract_type=contract_type,
+            stake=stake,
+            expected_payout=expected_payout,
+            purchase_price=purchase_price,
+            payout_received=None,
+            pnl=None,
+            status="open",
+            purchased_at_ms=now_epoch_ms(),
+            expires_at_ms=expires_at_ms,
+            settled_at_ms=None,
+        ))
+        s.flush()
+
+
+def settle(*, contract_id: str, payout_received: float, status: str) -> None:
+    """Mark a contract as won/lost with realized payout."""
+    with session_scope() as s:
+        row = s.get(ContractRow, contract_id)
+        if row is None or row.status != "open":
+            return
+        row.payout_received = payout_received
+        row.pnl = payout_received - row.purchase_price
+        row.status = status
+        row.settled_at_ms = now_epoch_ms()
+        s.flush()
+
+
+def list_open_ids(bot_id: str) -> list[str]:
+    with session_scope() as s:
+        rows = s.execute(
+            sa.select(ContractRow.contract_id).where(
+                ContractRow.bot_id == bot_id,
+                ContractRow.status == "open",
+            )
+        ).all()
+    return [r[0] for r in rows]
+
+
+def summary(bot_id: str) -> dict[str, Any]:
+    """Aggregate stats for the bot's contracts. Authoritative P&L for Deriv bots."""
+    with session_scope() as s:
+        rows = s.execute(
+            sa.select(ContractRow).where(ContractRow.bot_id == bot_id)
+        ).scalars().all()
+    open_ = [r for r in rows if r.status == "open"]
+    won = [r for r in rows if r.status == "won"]
+    lost = [r for r in rows if r.status == "lost"]
+    total_pnl = sum((r.pnl or 0.0) for r in rows if r.pnl is not None)
+    return {
+        "open_count": len(open_),
+        "won_count": len(won),
+        "lost_count": len(lost),
+        "total_count": len(rows),
+        "total_staked": sum(r.purchase_price for r in rows),
+        "total_payout": sum((r.payout_received or 0.0) for r in rows),
+        "realized_pnl": total_pnl,
+        "win_rate": (len(won) / (len(won) + len(lost))) if (won or lost) else 0.0,
+    }
+
+
+def list_recent(bot_id: str, limit: int = 50) -> list[dict[str, Any]]:
+    with session_scope() as s:
+        rows = (
+            s.execute(
+                sa.select(ContractRow)
+                .where(ContractRow.bot_id == bot_id)
+                .order_by(ContractRow.purchased_at_ms.desc())
+                .limit(limit)
+            )
+            .scalars()
+            .all()
+        )
+    return [_to_dict(r) for r in rows]
+
+
+def _to_dict(r: ContractRow) -> dict[str, Any]:
+    return {
+        "contract_id": r.contract_id,
+        "bot_id": r.bot_id,
+        "symbol": r.symbol,
+        "contract_type": r.contract_type,
+        "stake": r.stake,
+        "expected_payout": r.expected_payout,
+        "purchase_price": r.purchase_price,
+        "payout_received": r.payout_received,
+        "pnl": r.pnl,
+        "status": r.status,
+        "purchased_at_ms": r.purchased_at_ms,
+        "expires_at_ms": r.expires_at_ms,
+        "settled_at_ms": r.settled_at_ms,
+    }

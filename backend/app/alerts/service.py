@@ -45,7 +45,14 @@ def emit(
     with session_scope() as s:
         s.add(row)
         s.flush()
-        return _row_to_alert(row)
+        alert = _row_to_alert(row)
+    # Best-effort fan-out to external channels — never raises.
+    try:
+        from app.alerts import telegram
+        telegram.send(severity=severity.value, source=source, message=message, bot_id=bot_id)
+    except Exception:  # noqa: BLE001
+        pass
+    return alert
 
 
 def list_alerts(status: AlertStatus | None = None) -> list[Alert]:
