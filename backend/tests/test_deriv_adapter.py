@@ -1,8 +1,9 @@
-"""Unit tests for DerivAdapter — fully offline (WebSocket is mocked)."""
+"""Unit tests for DerivAdapter — fully offline (HTTP+WebSocket mocked)."""
 from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,6 +11,14 @@ import pytest
 from app.adapters.brokers.base import AdapterHealth, BrokerConfig
 from app.adapters.brokers.deriv_adapter import DerivAdapter
 from app.execution.models import ExecutionStatus, OrderIntent, OrderType, Side
+
+
+@contextmanager
+def fake_connect(ws):
+    """Patch both the OTP fetch and websockets.connect for a unit test."""
+    with patch.object(DerivAdapter, "_fetch_otp_url", AsyncMock(return_value="wss://fake/url")), \
+         patch("websockets.connect", return_value=ws):
+        yield
 
 
 # ---------------------------------------------------------------------------
@@ -93,10 +102,9 @@ def adapter() -> DerivAdapter:
 
 @pytest.mark.asyncio
 async def test_connect_success(adapter):
-    auth_resp = {"authorize": {"loginid": "CR123"}, "req_id": 1}
-    ws = FakeWS([auth_resp])
+    ws = FakeWS([])  # no authorize step in new flow
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
 
     assert adapter._connected is True
@@ -104,12 +112,14 @@ async def test_connect_success(adapter):
 
 
 @pytest.mark.asyncio
-async def test_connect_auth_failure(adapter):
-    error_resp = {"error": {"message": "InvalidToken", "code": "InvalidToken"}, "req_id": 1}
-    ws = FakeWS([error_resp])
-
-    with patch("websockets.connect", return_value=ws):
-        with pytest.raises(ConnectionError, match="InvalidToken"):
+async def test_connect_otp_failure(adapter):
+    """OTP fetch is the new auth gate; HTTP failure surfaces as ConnectionError."""
+    with patch.object(
+        DerivAdapter,
+        "_fetch_otp_url",
+        AsyncMock(side_effect=ConnectionError("Deriv OTP fetch failed (401): InvalidToken")),
+    ):
+        with pytest.raises(ConnectionError, match="OTP fetch failed"):
             await adapter.connect()
 
     assert adapter._connected is False
@@ -121,13 +131,9 @@ async def test_connect_auth_failure(adapter):
 
 @pytest.mark.asyncio
 async def test_health_check_healthy(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"ping": "pong", "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"ping": "pong"}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         health = await adapter.health_check()
 
@@ -147,13 +153,9 @@ async def test_health_check_disconnected(adapter):
 
 @pytest.mark.asyncio
 async def test_get_ticker(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"history": {"prices": [1.1055], "times": [1700000000]}, "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"history": {"prices": [1.1055], "times": [1700000000]}}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         ticker = await adapter.get_ticker("EUR/USD")
 
@@ -165,13 +167,9 @@ async def test_get_ticker(adapter):
 
 @pytest.mark.asyncio
 async def test_get_ticker_error(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"error": {"message": "InvalidSymbol"}, "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"error": {"message": "InvalidSymbol"}}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         with pytest.raises(ValueError, match="InvalidSymbol"):
             await adapter.get_ticker("EUR/USD")
@@ -184,13 +182,9 @@ async def test_get_ticker_error(adapter):
 
 @pytest.mark.asyncio
 async def test_get_balance(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"balance": {"balance": 500.0, "currency": "USD"}, "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"balance": {"balance": 500.0, "currency": "USD"}}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         balances = await adapter.get_balance()
 
@@ -206,14 +200,12 @@ async def test_get_balance(adapter):
 
 @pytest.mark.asyncio
 async def test_place_order_filled(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"proposal": {"id": "prop-abc", "ask_price": 9.87}, "req_id": 2},
-        {"buy": {"contract_id": 99999, "buy_price": 9.87}, "req_id": 3},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([
+        {"proposal": {"id": "prop-abc", "ask_price": 9.87}},
+        {"buy": {"contract_id": 99999, "buy_price": 9.87}},
+    ])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         result = await adapter.place_order(make_intent(Side.BUY))
 
@@ -226,14 +218,12 @@ async def test_place_order_filled(adapter):
 @pytest.mark.asyncio
 async def test_place_order_put_on_sell(adapter):
     """SELL intent should produce a PUT contract proposal."""
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"proposal": {"id": "prop-put", "ask_price": 8.0}, "req_id": 2},
-        {"buy": {"contract_id": 88888, "buy_price": 8.0}, "req_id": 3},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([
+        {"proposal": {"id": "prop-put", "ask_price": 8.0}},
+        {"buy": {"contract_id": 88888, "buy_price": 8.0}},
+    ])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         result = await adapter.place_order(make_intent(Side.SELL))
 
@@ -247,13 +237,9 @@ async def test_place_order_put_on_sell(adapter):
 
 @pytest.mark.asyncio
 async def test_place_order_rejected_by_proposal(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"error": {"message": "ContractBuyValidationError"}, "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"error": {"message": "ContractBuyValidationError"}}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         result = await adapter.place_order(make_intent())
 
@@ -275,13 +261,9 @@ async def test_place_order_not_connected(adapter):
 
 @pytest.mark.asyncio
 async def test_cancel_order_success(adapter):
-    responses = [
-        {"authorize": {}, "req_id": 1},
-        {"sell": {"sold_for": 4.5}, "req_id": 2},
-    ]
-    ws = FakeWS(responses)
+    ws = FakeWS([{"sell": {"sold_for": 4.5}}])
 
-    with patch("websockets.connect", return_value=ws):
+    with fake_connect(ws):
         await adapter.connect()
         ok = await adapter.cancel_order("99999")
 

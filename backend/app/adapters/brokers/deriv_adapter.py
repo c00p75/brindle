@@ -1,23 +1,23 @@
-"""Deriv WebSocket broker adapter — demo environment only.
+"""Deriv broker adapter — new api.derivws.com platform, demo only.
 
-Authentication: API token resolved from credential_ref at construction time.
-Protocol: WebSocket (wss://ws.derivws.com/websockets/v3?app_id={app_id})
+Authentication flow (new Deriv API):
+  1. POST /trading/v1/options/accounts/{account_id}/otp
+       Headers: Deriv-App-ID, Authorization: Bearer <PAT>
+  2. Response: { url: "wss://api.derivws.com/trading/v1/options/ws/demo?otp=..." }
+  3. Connect directly to that URL — already authenticated, no `authorize`
+     payload required.
 
-Trade execution flow:
-  1. proposal  — get a priced contract (CALL/PUT)
-  2. buy       — purchase the contract using proposal_id
+Credentials:
+  - DERIV_APP_ID  — alphanumeric app id from api.deriv.com Registered Apps
+  - DERIV_API_TOKEN — Personal Access Token (pat_...) from api.deriv.com
+  - account_id    — per-account, e.g. "DOT91022417" (lives in BrokerConfig)
 
-Symbol translation: canonical "EUR/USD" <-> Deriv native "frxEURUSD" via
-the "deriv" SymbolMapper namespace.
+Trade execution:
+  proposal (underlying_symbol, contract_type, …) → priced contract
+  buy (proposal_id, price)                       → contract opened
 
 BUY intent  → CALL contract (price goes up)
 SELL intent → PUT contract  (price goes down)
-
-Error mapping:
-  buy.contract_id present  → FILLED
-  error.code present       → REJECTED
-  proposal missing id      → ERROR
-  network / timeout        → DISCONNECTED
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ import json
 import logging
 from typing import Any
 
+import httpx
 import websockets
 from websockets.exceptions import ConnectionClosed
 
@@ -47,7 +48,7 @@ from app.execution.models import (
 
 log = logging.getLogger("adapter.deriv")
 
-_WS_BASE = "wss://ws.derivws.com/websockets/v3"
+_OTP_BASE = "https://api.derivws.com"
 _REQUEST_TIMEOUT = 15.0
 _PING_INTERVAL = 25  # seconds — Deriv drops idle connections after ~60 s
 
@@ -79,9 +80,30 @@ class DerivAdapter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    @property
-    def _ws_url(self) -> str:
-        return f"{_WS_BASE}?app_id={self._app_id}"
+    async def _fetch_otp_url(self) -> str:
+        """Exchange (PAT, account_id) for an OTP-authenticated WebSocket URL.
+
+        Deriv's new platform issues a short-lived URL with `?otp=...` that
+        pre-authenticates the WebSocket connection — no `authorize` payload
+        needed afterwards.
+        """
+        path = f"/trading/v1/options/accounts/{self._account_id}/otp"
+        headers = {
+            "Deriv-App-ID": self._app_id,
+            "Authorization": f"Bearer {self._api_key}",
+        }
+        async with httpx.AsyncClient(base_url=_OTP_BASE, timeout=_REQUEST_TIMEOUT) as c:
+            resp = await c.post(path, headers=headers)
+        if resp.status_code != 200:
+            raise ConnectionError(
+                f"Deriv OTP fetch failed ({resp.status_code}): {resp.text[:200]}"
+            )
+        url = resp.json().get("data", {}).get("url")
+        if not url:
+            raise ConnectionError(
+                f"Deriv OTP response missing url field: {resp.text[:200]}"
+            )
+        return url
 
     def _next_req_id(self) -> int:
         self._req_counter += 1
@@ -132,19 +154,14 @@ class DerivAdapter:
     # ------------------------------------------------------------------
 
     async def connect(self) -> None:
+        ws_url = await self._fetch_otp_url()
         self._ws = await websockets.connect(
-            self._ws_url,
+            ws_url,
             ping_interval=_PING_INTERVAL,
             ping_timeout=10,
             open_timeout=15,
         )
         self._recv_task = asyncio.create_task(self._recv_loop())
-
-        resp = await self._send({"authorize": self._api_key})
-        if "error" in resp:
-            await self.close()
-            raise ConnectionError(f"Deriv auth failed: {resp['error']['message']}")
-
         self._connected = True
         log.info(
             "deriv connected account=%s env=%s app_id=%s",
@@ -285,7 +302,7 @@ class DerivAdapter:
                 "currency": "USD",
                 "duration": self._default_duration,
                 "duration_unit": self._default_duration_unit,
-                "symbol": native,
+                "underlying_symbol": native,
             })
         except Exception as exc:
             log.warning("deriv proposal error symbol=%s err=%s", intent.symbol, exc)
