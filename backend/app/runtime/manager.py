@@ -35,6 +35,8 @@ log = logging.getLogger("runtime")
 TICK_INTERVAL_S = 1.0
 # Sweep open contracts for settlement every N ticks (~10s with 1s tick).
 CONTRACT_POLL_INTERVAL = 10
+# Poll broker balance every N ticks (~30s) for the UI.
+BALANCE_POLL_INTERVAL = 30
 
 
 @dataclass
@@ -49,6 +51,15 @@ class RuntimeManager:
     def __init__(self) -> None:
         self._runtimes: dict[str, _Runtime] = {}
         self._lock = asyncio.Lock()
+        # Last-known balance per bot, refreshed by the runtime loop.
+        # Shape: { bot_id: {"currency": "USD", "available": float, "total": float, "ts_ms": int} }
+        self._balance_cache: dict[str, dict] = {}
+
+    def cache_balance(self, bot_id: str, balance: dict) -> None:
+        self._balance_cache[bot_id] = balance
+
+    def get_cached_balance(self, bot_id: str) -> dict | None:
+        return self._balance_cache.get(bot_id)
 
     async def start(self, bot: Bot) -> None:
         async with self._lock:
@@ -144,6 +155,8 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     tick_count = 0
     log.info("runtime started bot=%s strategy=%s symbols=%s source=%s",
              bot.id, strategy.id, cfg.symbols, type(source).__name__)
+    # Seed the balance cache immediately so the UI has data on first load.
+    await _poll_balance(bot.id, adapter)
 
     try:
         while True:
@@ -154,6 +167,9 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 # Drawdown auto-stop check uses authoritative contract P&L.
                 if await _drawdown_breached(bot, cfg):
                     return
+            # Every BALANCE_POLL_INTERVAL ticks, refresh broker balance for the UI.
+            if tick_count % BALANCE_POLL_INTERVAL == 0:
+                await _poll_balance(bot.id, adapter)
 
             for symbol in cfg.symbols:
                 # Staleness guard — NOOP and alert on first detection
@@ -236,6 +252,25 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             await adapter.close()
         except Exception:  # noqa: BLE001
             pass
+
+
+async def _poll_balance(bot_id: str, adapter) -> None:
+    """Refresh cached broker balance for the UI. Best-effort — silent on failure."""
+    try:
+        balances = await adapter.get_balance()
+    except Exception as e:  # noqa: BLE001
+        log.warning("balance poll failed bot=%s: %s", bot_id, e)
+        return
+    if not balances:
+        return
+    b = balances[0]
+    from app.core.time import now_epoch_ms
+    get_runtime_manager().cache_balance(bot_id, {
+        "currency": b.currency,
+        "available": b.available,
+        "total": b.total,
+        "ts_ms": now_epoch_ms(),
+    })
 
 
 async def _poll_contracts(bot_id: str, adapter) -> None:

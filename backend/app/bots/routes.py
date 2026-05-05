@@ -132,6 +132,48 @@ async def contracts_summary(bot_id: str, _: User = Depends(require("bot:read")))
     return contracts_svc.summary(bot_id)
 
 
+@router.get("/{bot_id}/balance")
+async def balance(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
+    """Live broker balance.
+
+    For running bots: returns the runtime's cached balance (refreshed every
+    BALANCE_POLL_INTERVAL ticks).  For stopped bots with an applied config:
+    creates a one-shot adapter, fetches once, returns. Returns
+    {"available": null, "currency": null, ...} if unavailable.
+    """
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    from app.runtime.manager import get_runtime_manager
+    cached = get_runtime_manager().get_cached_balance(bot_id)
+    if cached is not None:
+        return {**cached, "source": "runtime_cache"}
+
+    # Fallback: one-shot fetch via a fresh adapter from the active config.
+    from app.adapters.brokers.factory import create_adapter
+    from app.configs.service import active_version
+    cv = active_version(bot_id)
+    if cv is None:
+        return {"available": None, "currency": None, "total": None, "ts_ms": None, "source": "no_config"}
+    try:
+        adapter = create_adapter(cv.config.broker)
+        await adapter.connect()
+        try:
+            balances = await adapter.get_balance()
+        finally:
+            await adapter.close()
+    except Exception as e:  # noqa: BLE001
+        return {"available": None, "currency": None, "total": None, "ts_ms": None,
+                "source": "fetch_error", "error": str(e)[:200]}
+    if not balances:
+        return {"available": None, "currency": None, "total": None, "ts_ms": None, "source": "empty"}
+    b = balances[0]
+    from app.core.time import now_epoch_ms
+    return {
+        "available": b.available, "currency": b.currency, "total": b.total,
+        "ts_ms": now_epoch_ms(), "source": "live_fetch",
+    }
+
+
 @router.get("/{bot_id}/active-config")
 async def active_config(bot_id: str, _: User = Depends(require("config:read"))):
     bot = bot_service.get(bot_id)

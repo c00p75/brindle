@@ -184,6 +184,15 @@ export interface ContractsSummary {
   win_rate: number;
 }
 
+export interface BrokerBalance {
+  available: number | null;
+  total: number | null;
+  currency: string | null;
+  ts_ms: number | null;
+  source: "runtime_cache" | "live_fetch" | "no_config" | "fetch_error" | "empty";
+  error?: string;
+}
+
 export interface BacktestRequest {
   strategy_id: string;
   params: Record<string, unknown>;

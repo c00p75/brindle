@@ -8,6 +8,7 @@ import type {
   Bot,
   BotConfig,
   ConfigVersion,
+  BrokerBalance,
   Contract,
   ContractsSummary,
   DiffEntry,
@@ -158,6 +159,9 @@ export const api = {
   },
   contractsSummary(botId: string): Promise<ContractsSummary> {
     return request(`/api/bots/${botId}/contracts/summary`);
+  },
+  brokerBalance(botId: string): Promise<BrokerBalance> {
+    return request(`/api/bots/${botId}/balance`);
   },
   listAudit(resourceId?: string): Promise<AuditEvent[]> {
     const q = resourceId ? `?resource_id=${encodeURIComponent(resourceId)}` : "";

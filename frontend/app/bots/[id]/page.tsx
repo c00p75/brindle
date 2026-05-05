@@ -7,7 +7,7 @@ import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api, getUser, getToken } from "@/lib/api";
 import { can } from "@/lib/rbac";
-import type { AuditEvent, Bot, ConfigVersion, Fill, Order, Position, TickEvent } from "@/lib/types";
+import type { AuditEvent, Bot, BrokerBalance, ConfigVersion, ContractsSummary, Fill, Order, Position, TickEvent } from "@/lib/types";
 
 export default function BotDetailsPage() {
   return (
@@ -30,6 +30,8 @@ function BotDetails() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [fills, setFills] = useState<Fill[]>([]);
   const [audit, setAudit] = useState<AuditEvent[]>([]);
+  const [balance, setBalance] = useState<BrokerBalance | null>(null);
+  const [contractsSummary, setContractsSummary] = useState<ContractsSummary | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<number>(0);
   const [tab, setTab] = useState<"activity" | "config" | "audit">("activity");
@@ -40,13 +42,14 @@ function BotDetails() {
 
   const refresh = useCallback(async () => {
     try {
-      const [b, v, pos, ord, fl, a] = await Promise.all([
+      const [b, v, pos, ord, fl, a, summary] = await Promise.all([
         api.getBot(id),
         api.listConfigs(id),
         api.listPositions(id),
         api.listOrders(id),
         api.listFills(id),
         api.listAudit(),
+        api.contractsSummary(id).catch(() => null),
       ]);
       setBot(b);
       setVersions(v);
@@ -54,10 +57,14 @@ function BotDetails() {
       setOrders(ord);
       setFills(fl);
       setAudit(a.filter((e) => e.resource_id === id || e.resource_id.startsWith(`${id}:`)));
+      setContractsSummary(summary);
       setLastRefreshed(Date.now());
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
     }
+    // Balance is fetched separately because it can be slow when stopped
+    // (one-shot adapter connect). Don't block the rest of the refresh on it.
+    api.brokerBalance(id).then(setBalance).catch(() => {});
   }, [id]);
 
   // Initial load
@@ -195,6 +202,38 @@ function BotDetails() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Live stats — broker balance + contract P&L */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <StatCard
+          label="Broker balance"
+          value={balance && balance.available != null && balance.currency
+            ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)} ${balance.currency}`
+            : "—"}
+          hint={balance?.source === "runtime_cache" ? "live" : balance?.source === "live_fetch" ? "fetched" : balance?.source === "fetch_error" ? "error" : ""}
+        />
+        <StatCard
+          label="Realized P&L"
+          value={contractsSummary
+            ? `${contractsSummary.realized_pnl >= 0 ? "+" : ""}$${contractsSummary.realized_pnl.toFixed(2)}`
+            : "—"}
+          valueColor={contractsSummary
+            ? (contractsSummary.realized_pnl >= 0 ? "#008265" : "#cc2626")
+            : undefined}
+        />
+        <StatCard
+          label="Contracts (open / W / L)"
+          value={contractsSummary
+            ? `${contractsSummary.open_count} / ${contractsSummary.won_count} / ${contractsSummary.lost_count}`
+            : "—"}
+        />
+        <StatCard
+          label="Win rate"
+          value={contractsSummary && (contractsSummary.won_count + contractsSummary.lost_count) > 0
+            ? `${(contractsSummary.win_rate * 100).toFixed(1)}%`
+            : "—"}
+        />
       </div>
 
       {/* Actions */}
@@ -793,6 +832,22 @@ function EquityChart({ fills }: { fills: Fill[] }) {
       <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13, color: "#aaaaaa" }}>
         <span>{fills.length} fill{fills.length !== 1 ? "s" : ""}</span>
         <span>Final PnL: <span style={{ fontWeight: 700, color }}>{lastPnl >= 0 ? "+" : ""}{lastPnl.toFixed(2)}</span></span>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, valueColor, hint }: {
+  label: string; value: string; valueColor?: string; hint?: string;
+}) {
+  return (
+    <div className="card" style={{ padding: "14px 16px" }}>
+      <div style={{ fontSize: 11, color: "#686868", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+        <span>{label}</span>
+        {hint && <span style={{ textTransform: "none", letterSpacing: 0, color: "#aaa", fontWeight: 400 }}>{hint}</span>}
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 700, color: valueColor ?? "#0e0e0e", fontVariantNumeric: "tabular-nums" }}>
+        {value}
       </div>
     </div>
   );
