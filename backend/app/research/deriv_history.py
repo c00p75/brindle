@@ -39,31 +39,58 @@ async def _fetch_ws_url(account_id: str, app_id: str, pat: str) -> str:
 async def _fetch_ticks_async(
     canonical_symbol: str, count: int, *, account_id: str, app_id: str, pat: str
 ) -> list[Bar]:
+    """Fetch ticks, paging backwards in time when count > 1000.
+
+    Deriv caps `ticks_history` responses at ~1000 ticks per request. To get
+    larger samples, walk backwards: each request uses the oldest timestamp
+    of the previous response as its `end`.
+    """
     mapper = get_mapper("deriv")
     native = mapper.to_native(canonical_symbol)
     ws_url = await _fetch_ws_url(account_id, app_id, pat)
     bars: list[Bar] = []
+    seen_ts: set[int] = set()
+    end: Any = "latest"
+    req_id = 0
+
     async with websockets.connect(ws_url, open_timeout=15) as ws:
-        await ws.send(json.dumps({
-            "ticks_history": native,
-            "count": count,
-            "end": "latest",
-            "style": "ticks",
-            "req_id": 1,
-        }))
-        resp: dict[str, Any] = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
-        if "error" in resp:
-            raise RuntimeError(f"Deriv ticks_history error: {resp['error']['message']}")
-        history = resp.get("history", {})
-        prices = history.get("prices", [])
-        times = history.get("times", [])
-        for p, t in zip(prices, times):
-            price = float(p)
-            bars.append(Bar(
-                symbol=canonical_symbol,
-                ts_ms=int(t) * 1000,
-                open=price, high=price, low=price, close=price, volume=0.0,
-            ))
+        while len(bars) < count:
+            req_id += 1
+            need = min(1000, count - len(bars))
+            await ws.send(json.dumps({
+                "ticks_history": native,
+                "count": need,
+                "end": end,
+                "style": "ticks",
+                "req_id": req_id,
+            }))
+            resp: dict[str, Any] = json.loads(await asyncio.wait_for(ws.recv(), timeout=20))
+            if "error" in resp:
+                raise RuntimeError(f"Deriv ticks_history error: {resp['error']['message']}")
+            history = resp.get("history", {})
+            prices = history.get("prices", [])
+            times = history.get("times", [])
+            if not prices:
+                break
+
+            page_bars: list[Bar] = []
+            for p, t in zip(prices, times):
+                ts = int(t)
+                if ts in seen_ts:
+                    continue
+                seen_ts.add(ts)
+                price = float(p)
+                page_bars.append(Bar(
+                    symbol=canonical_symbol,
+                    ts_ms=ts * 1000,
+                    open=price, high=price, low=price, close=price, volume=0.0,
+                ))
+            if not page_bars:
+                break  # nothing new — we've hit the end of available history
+            bars.extend(page_bars)
+            # Walk backwards: next page ends just before this page's earliest tick.
+            end = min(times) - 1
+    bars.sort(key=lambda b: b.ts_ms)
     return bars
 
 
