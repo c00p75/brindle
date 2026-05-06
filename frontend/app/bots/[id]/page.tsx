@@ -492,6 +492,7 @@ function BotDetails() {
             )}
           </div>
         </>
+      )}
       {/* Analytics Tab */}
       {tab === "analytics" && (
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>

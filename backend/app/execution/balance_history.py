@@ -80,66 +80,101 @@ def latest(bot_id: str) -> dict[str, Any] | None:
     return _row_dict(row) if row else None
 
 
+_BUCKET_MS = {"minute": 60_000, "hour": 3_600_000, "day": 86_400_000}
+
+
 def analytics(*, bot_id: str, since_ms: int, until_ms: int,
               granularity: str = "hour") -> list[dict[str, Any]]:
-    """Return performance aggregates bucketed by hour or day.
+    """Time-bucketed performance metrics for a bot.
 
-    Granularity: 'hour' or 'day'.
-    Returns: list of buckets, each with {bucket_ms, win_rate, pnl, staked, volume, ...}
+    Each bucket aggregates two independent data sources:
+      - Contracts purchased in the bucket (counts, stakes, win/loss, contract P&L)
+      - Balance snapshots in the bucket (open/close/min/max — the real equity curve)
+
+    Granularity: 'minute' | 'hour' | 'day'. Unknown values are coerced to 'hour'.
+    Returns buckets sorted ascending. Buckets where NEITHER source had data are
+    omitted to keep payloads small; partial buckets (only contracts, only
+    balance) ARE included with the missing fields as null.
     """
-    from app.db.orm import ContractRow, FillRow
-    with session_scope() as s:
-        # 1. Fetch relevant contracts and fills in the window
-        # For Deriv bots, ContractRow is the source of truth for P&L.
-        q_contracts = (
-            sa.select(ContractRow)
-            .where(ContractRow.bot_id == bot_id, ContractRow.purchased_at_ms >= since_ms,
-                   ContractRow.purchased_at_ms <= until_ms)
-            .order_by(ContractRow.purchased_at_ms.asc())
-        )
-        contracts = s.execute(q_contracts).scalars().all()
+    from app.db.orm import ContractRow
 
-        # For Forex bots, FillRow P&L is materialized in PositionRow, but for history
-        # we'd need to reconstruct it or look at realized_pnl changes.
-        # Currently, we focus on Deriv contracts as they are the main use case.
-
-    if not contracts:
+    bucket_size = _BUCKET_MS.get(granularity, _BUCKET_MS["hour"])
+    if since_ms >= until_ms:
         return []
 
-    # Bucketing logic
-    bucket_size = 3600_000 if granularity == "hour" else 86400_000
+    with session_scope() as s:
+        contracts = s.execute(
+            sa.select(ContractRow)
+            .where(
+                ContractRow.bot_id == bot_id,
+                ContractRow.purchased_at_ms >= since_ms,
+                ContractRow.purchased_at_ms <= until_ms,
+            )
+            .order_by(ContractRow.purchased_at_ms.asc())
+        ).scalars().all()
+
+        snapshots = s.execute(
+            sa.select(BalanceSnapshotRow)
+            .where(
+                BalanceSnapshotRow.bot_id == bot_id,
+                BalanceSnapshotRow.at_ms >= since_ms,
+                BalanceSnapshotRow.at_ms <= until_ms,
+            )
+            .order_by(BalanceSnapshotRow.at_ms.asc())
+        ).scalars().all()
+
     buckets: dict[int, dict[str, Any]] = {}
 
-    for c in contracts:
-        bucket_ts = (c.purchased_at_ms // bucket_size) * bucket_size
-        if bucket_ts not in buckets:
-            buckets[bucket_ts] = {
-                "bucket_ms": bucket_ts,
-                "pnl": 0.0,
-                "staked": 0.0,
-                "won": 0,
-                "lost": 0,
-                "total": 0,
+    def _bucket(ts: int) -> dict[str, Any]:
+        key = (ts // bucket_size) * bucket_size
+        if key not in buckets:
+            buckets[key] = {
+                "bucket_ms": key,
+                # contract activity
+                "pnl": 0.0, "staked": 0.0, "payout": 0.0,
+                "won": 0, "lost": 0, "open": 0, "total": 0,
+                "win_rate": 0.0,
+                # balance bookends — null until we see a snapshot in this bucket
+                "balance_open": None, "balance_close": None,
+                "balance_low": None, "balance_high": None,
             }
-        b = buckets[bucket_ts]
+        return buckets[key]
+
+    for c in contracts:
+        b = _bucket(c.purchased_at_ms)
         b["total"] += 1
         b["staked"] += c.purchase_price
         if c.status == "won":
             b["won"] += 1
             b["pnl"] += (c.pnl or 0.0)
+            b["payout"] += (c.payout_received or 0.0)
         elif c.status == "lost":
             b["lost"] += 1
             b["pnl"] += (c.pnl or 0.0)
+        else:
+            b["open"] += 1
 
-    # Convert to sorted list and add win_rate
-    results = []
+    # Snapshots are already chronological — first one we see in a bucket is open,
+    # last one is close, track min/max along the way.
+    for snap in snapshots:
+        b = _bucket(snap.at_ms)
+        v = snap.balance
+        if b["balance_open"] is None:
+            b["balance_open"] = v
+            b["balance_low"] = v
+            b["balance_high"] = v
+        else:
+            if v < b["balance_low"]: b["balance_low"] = v
+            if v > b["balance_high"]: b["balance_high"] = v
+        b["balance_close"] = v
+
+    # Finalize: compute win_rate, sort
+    results: list[dict[str, Any]] = []
     for ts in sorted(buckets.keys()):
         b = buckets[ts]
-        win_count = b["won"]
-        loss_count = b["lost"]
-        b["win_rate"] = win_count / (win_count + loss_count) if (win_count + loss_count) > 0 else 0.0
+        settled = b["won"] + b["lost"]
+        b["win_rate"] = b["won"] / settled if settled > 0 else 0.0
         results.append(b)
-
     return results
 
 

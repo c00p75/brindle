@@ -278,10 +278,18 @@ export interface BalanceSnapshot {
 
 export interface AnalyticsBucket {
   bucket_ms: number;
+  // contract activity in this bucket
   pnl: number;
   staked: number;
+  payout: number;
   won: number;
   lost: number;
+  open: number;
   total: number;
   win_rate: number;
+  // balance bookends — null when no balance snapshot landed in this bucket
+  balance_open: number | null;
+  balance_close: number | null;
+  balance_low: number | null;
+  balance_high: number | null;
 }

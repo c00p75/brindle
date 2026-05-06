@@ -2,9 +2,11 @@
 
 import type {
   Alert,
+  AnalyticsBucket,
   AuditEvent,
   BacktestMetrics,
   BacktestRequest,
+  BalanceSnapshot,
   Bot,
   BotConfig,
   ConfigVersion,
