@@ -191,6 +191,11 @@ export interface BrokerBalance {
   ts_ms: number | null;
   source: "runtime_cache" | "live_fetch" | "no_config" | "fetch_error" | "empty";
   error?: string;
+  // First balance ever observed for this bot. Used to compute net change
+  // without hardcoding any account-size assumption. Null if not yet snapshotted.
+  starting_balance: number | null;
+  starting_balance_currency: string | null;
+  starting_balance_at_ms: number | null;
 }
 
 export interface BacktestRequest {

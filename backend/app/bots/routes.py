@@ -134,26 +134,43 @@ async def contracts_summary(bot_id: str, _: User = Depends(require("bot:read")))
 
 @router.get("/{bot_id}/balance")
 async def balance(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
-    """Live broker balance.
+    """Live broker balance + per-bot starting baseline.
 
     For running bots: returns the runtime's cached balance (refreshed every
     BALANCE_POLL_INTERVAL ticks).  For stopped bots with an applied config:
-    creates a one-shot adapter, fetches once, returns. Returns
-    {"available": null, "currency": null, ...} if unavailable.
+    creates a one-shot adapter, fetches once, returns.
+
+    `starting_balance` is the first balance ever observed for this bot — used
+    by the UI to compute "net change" without hardcoding any account-size
+    assumptions. Null if no balance has been observed yet.
     """
     if bot_service.get(bot_id) is None:
         raise HTTPException(404, "bot not found")
+
+    # Always include the starting-balance snapshot regardless of how we get the
+    # current balance — UI uses it to render net change.
+    sb_amt, sb_ccy, sb_ts = bot_service.get_starting_balance(bot_id)
+
     from app.runtime.manager import get_runtime_manager
     cached = get_runtime_manager().get_cached_balance(bot_id)
     if cached is not None:
-        return {**cached, "source": "runtime_cache"}
+        return {
+            **cached,
+            "source": "runtime_cache",
+            "starting_balance": sb_amt,
+            "starting_balance_currency": sb_ccy,
+            "starting_balance_at_ms": sb_ts,
+        }
 
     # Fallback: one-shot fetch via a fresh adapter from the active config.
     from app.adapters.brokers.factory import create_adapter
     from app.configs.service import active_version
     cv = active_version(bot_id)
     if cv is None:
-        return {"available": None, "currency": None, "total": None, "ts_ms": None, "source": "no_config"}
+        return {"available": None, "currency": None, "total": None, "ts_ms": None,
+                "source": "no_config",
+                "starting_balance": sb_amt, "starting_balance_currency": sb_ccy,
+                "starting_balance_at_ms": sb_ts}
     try:
         adapter = create_adapter(cv.config.broker)
         await adapter.connect()
@@ -163,15 +180,42 @@ async def balance(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
             await adapter.close()
     except Exception as e:  # noqa: BLE001
         return {"available": None, "currency": None, "total": None, "ts_ms": None,
-                "source": "fetch_error", "error": str(e)[:200]}
+                "source": "fetch_error", "error": str(e)[:200],
+                "starting_balance": sb_amt, "starting_balance_currency": sb_ccy,
+                "starting_balance_at_ms": sb_ts}
     if not balances:
-        return {"available": None, "currency": None, "total": None, "ts_ms": None, "source": "empty"}
+        return {"available": None, "currency": None, "total": None, "ts_ms": None,
+                "source": "empty",
+                "starting_balance": sb_amt, "starting_balance_currency": sb_ccy,
+                "starting_balance_at_ms": sb_ts}
     b = balances[0]
+    # Snapshot the starting baseline if not already set — works the same for
+    # live_fetch as for runtime_cache callers.
+    try:
+        if bot_service.snapshot_starting_balance(bot_id, b.available, b.currency):
+            sb_amt, sb_ccy, sb_ts = bot_service.get_starting_balance(bot_id)
+    except Exception:  # noqa: BLE001
+        pass
     from app.core.time import now_epoch_ms
     return {
         "available": b.available, "currency": b.currency, "total": b.total,
         "ts_ms": now_epoch_ms(), "source": "live_fetch",
+        "starting_balance": sb_amt, "starting_balance_currency": sb_ccy,
+        "starting_balance_at_ms": sb_ts,
     }
+
+
+@router.post("/{bot_id}/balance/reset-baseline")
+async def balance_reset_baseline(bot_id: str, _: User = Depends(require("bot:edit"))) -> dict:
+    """Clear the bot's starting-balance snapshot. Next balance read becomes the new baseline.
+
+    Use this when you've manually topped up the broker account and want
+    "net change since reset" to start from now.
+    """
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    ok = bot_service.reset_starting_balance(bot_id)
+    return {"reset": ok}
 
 
 @router.get("/{bot_id}/active-config")

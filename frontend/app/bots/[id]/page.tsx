@@ -267,10 +267,20 @@ function BotDetails() {
         const balValue = balance && balance.available != null && balance.currency
           ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)}`
           : "—";
-        // Net change is computed against $10K demo default; only meaningful for
-        // brand-new demo accounts. Don't confuse with cumulative session P&L.
-        const netChange = balance?.available != null ? balance.available - 10000 : null;
-        const netStr = netChange == null ? undefined : `${netChange >= 0 ? "+" : ""}$${netChange.toFixed(2)} vs $10k start`;
+        // Net change is measured against the per-bot starting baseline that
+        // the backend snapshots on the first balance read. NEVER hardcode an
+        // account-size assumption here — different brokers/accounts have
+        // different starting amounts and the user can also reset the baseline.
+        const startBal = balance?.starting_balance ?? null;
+        const netChange = (balance?.available != null && startBal != null)
+          ? balance.available - startBal
+          : null;
+        const startStr = startBal != null
+          ? `${balance?.starting_balance_currency === "USD" ? "$" : ""}${startBal.toFixed(2)}`
+          : "—";
+        const netStr = netChange == null
+          ? (startBal == null ? "baseline not yet captured" : undefined)
+          : `${netChange >= 0 ? "+" : ""}$${netChange.toFixed(2)} since baseline (${startStr})`;
         const netColor = netChange == null ? "#aaaaaa" : netChange >= 0 ? "#008265" : "#cc2626";
 
         const pnlValue = cs ? `${cs.realized_pnl >= 0 ? "+" : ""}$${cs.realized_pnl.toFixed(2)}` : "—";

@@ -38,6 +38,12 @@ class BotRow(Base):
     active_config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at_ms: Mapped[int] = mapped_column(BigInteger)
     updated_at_ms: Mapped[int] = mapped_column(BigInteger)
+    # Snapshot of broker balance the first time we successfully read it for
+    # this bot. Used for "net change since this bot started running" UI —
+    # never hardcode account-size assumptions in the frontend.
+    starting_balance: Mapped[float | None] = mapped_column(nullable=True)
+    starting_balance_currency: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    starting_balance_at_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class ConfigVersionRow(Base):

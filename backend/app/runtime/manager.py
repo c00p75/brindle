@@ -255,7 +255,12 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
 
 
 async def _poll_balance(bot_id: str, adapter) -> None:
-    """Refresh cached broker balance for the UI. Best-effort — silent on failure."""
+    """Refresh cached broker balance for the UI. Best-effort — silent on failure.
+
+    On the first successful read for a bot, snapshot the balance into the bot
+    record as `starting_balance` so the UI has a real baseline (instead of a
+    hardcoded $10K) when computing net change.
+    """
     try:
         balances = await adapter.get_balance()
     except Exception as e:  # noqa: BLE001
@@ -265,12 +270,19 @@ async def _poll_balance(bot_id: str, adapter) -> None:
         return
     b = balances[0]
     from app.core.time import now_epoch_ms
+    from app.bots import service as bot_service
     get_runtime_manager().cache_balance(bot_id, {
         "currency": b.currency,
         "available": b.available,
         "total": b.total,
         "ts_ms": now_epoch_ms(),
     })
+    try:
+        if bot_service.snapshot_starting_balance(bot_id, b.available, b.currency):
+            log.info("snapshotted starting balance bot=%s amount=%.2f %s",
+                     bot_id, b.available, b.currency)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def _poll_contracts(bot_id: str, adapter) -> None:

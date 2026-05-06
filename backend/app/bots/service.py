@@ -67,6 +67,46 @@ def list_bots() -> list[Bot]:
         return [_row_to_bot(r) for r in rows]
 
 
+def get_starting_balance(bot_id: str) -> tuple[float | None, str | None, int | None]:
+    """Return (amount, currency, ts_ms) — None tuple if never snapshotted."""
+    with session_scope() as s:
+        row = s.get(BotRow, bot_id)
+        if row is None:
+            return (None, None, None)
+        return (row.starting_balance, row.starting_balance_currency, row.starting_balance_at_ms)
+
+
+def snapshot_starting_balance(bot_id: str, amount: float, currency: str) -> bool:
+    """Store the first observed balance as the bot's baseline. No-op if already set.
+
+    Returns True if a new snapshot was recorded, False if one already existed.
+    """
+    with session_scope() as s:
+        row = s.get(BotRow, bot_id)
+        if row is None:
+            return False
+        if row.starting_balance is not None:
+            return False
+        row.starting_balance = amount
+        row.starting_balance_currency = currency
+        row.starting_balance_at_ms = now_epoch_ms()
+        s.flush()
+        return True
+
+
+def reset_starting_balance(bot_id: str) -> bool:
+    """Clear the snapshot so the next balance poll captures a new baseline."""
+    with session_scope() as s:
+        row = s.get(BotRow, bot_id)
+        if row is None:
+            return False
+        row.starting_balance = None
+        row.starting_balance_currency = None
+        row.starting_balance_at_ms = None
+        s.flush()
+        return True
+
+
 def _set_state(bot_id: str, state: BotState, allowed_from: set[BotState]) -> Bot:
     with session_scope() as s:
         row = s.get(BotRow, bot_id)
