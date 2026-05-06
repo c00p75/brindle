@@ -9,6 +9,7 @@ from app.strategies.base import Strategy
 from app.strategies.bollinger import BollingerV1
 from app.strategies.deriv import DerivV1
 from app.strategies.macd import MacdV1
+from app.strategies.regime import RegimeV1
 from app.strategies.trend import TrendV1
 
 log = logging.getLogger("strategies")
@@ -18,6 +19,7 @@ STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "deriv_v1": DerivV1,
     "bollinger_v1": BollingerV1,
     "macd_v1": MacdV1,
+    "regime_v1": RegimeV1,
 }
 
 

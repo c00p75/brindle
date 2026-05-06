@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Paper-first safety locks — cannot be overridden from API/UI.
     paper_trading_only: bool = True
     live_trading_enabled: bool = False
+    # Hard mode: when true, ALL bots are forced to use the paper adapter
+    # regardless of broker config. Use during the multi-week validation
+    # period before any real-broker deployment.
+    force_paper_only: bool = False
 
     cors_origins: str = "http://localhost:3000"
 

@@ -10,12 +10,26 @@ def create_adapter(config: BrokerConfig) -> BrokerAdapter:
 
     Fails closed on invalid config, unknown type, or live-trading
     attempts while PAPER_TRADING_ONLY is set.
+
+    When FORCE_PAPER_ONLY is set, every bot is silently rerouted through
+    the paper adapter regardless of its config — the validation hard-mode
+    used during multi-week strategy testing.
     """
+    settings = get_settings()
+    if settings.force_paper_only and config.type != "paper":
+        # Rewrite to paper. Symbol namespace must match what the paper feed
+        # knows about — fall back to "paper" namespace.
+        config = config.model_copy(update={
+            "type": "paper",
+            "environment": "paper",
+            "credential_ref": "secret://paper/none",
+            "symbol_namespace": "paper",
+        })
+
     errors = validate_broker_config(config)
     if errors:
         raise ValueError("invalid broker config: " + "; ".join(errors))
 
-    settings = get_settings()
     if settings.paper_trading_only and config.environment not in {"paper", "demo", "sandbox", "practice"}:
         raise ValueError(
             f"environment '{config.environment}' not permitted under "
