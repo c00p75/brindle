@@ -101,26 +101,29 @@ async def positions(bot_id: str, _: User = Depends(require("bot:read"))) -> list
 
 
 @router.get("/{bot_id}/orders")
-async def orders(bot_id: str, limit: int = 100, _: User = Depends(require("bot:read"))) -> list[dict]:
+async def orders(bot_id: str, limit: int = 100, since_ms: int | None = None,
+                 until_ms: int | None = None, _: User = Depends(require("bot:read"))) -> list[dict]:
     if bot_service.get(bot_id) is None:
         raise HTTPException(404, "bot not found")
-    return exec_persistence.list_orders(bot_id, limit=limit)
+    return exec_persistence.list_orders(bot_id, limit=limit, since_ms=since_ms, until_ms=until_ms)
 
 
 @router.get("/{bot_id}/fills")
-async def fills(bot_id: str, limit: int = 100, _: User = Depends(require("bot:read"))) -> list[dict]:
+async def fills(bot_id: str, limit: int = 100, since_ms: int | None = None,
+                until_ms: int | None = None, _: User = Depends(require("bot:read"))) -> list[dict]:
     if bot_service.get(bot_id) is None:
         raise HTTPException(404, "bot not found")
-    return exec_persistence.list_fills(bot_id, limit=limit)
+    return exec_persistence.list_fills(bot_id, limit=limit, since_ms=since_ms, until_ms=until_ms)
 
 
 @router.get("/{bot_id}/contracts")
-async def contracts(bot_id: str, limit: int = 50, _: User = Depends(require("bot:read"))) -> list[dict]:
+async def contracts(bot_id: str, limit: int = 50, since_ms: int | None = None,
+                    until_ms: int | None = None, _: User = Depends(require("bot:read"))) -> list[dict]:
     """Recent Deriv binary-option contracts with stake/payout/status."""
     from app.execution import contracts as contracts_svc
     if bot_service.get(bot_id) is None:
         raise HTTPException(404, "bot not found")
-    return contracts_svc.list_recent(bot_id, limit=limit)
+    return contracts_svc.list_recent(bot_id, limit=limit, since_ms=since_ms, until_ms=until_ms)
 
 
 @router.get("/{bot_id}/contracts/summary")
@@ -196,6 +199,16 @@ async def balance(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
             sb_amt, sb_ccy, sb_ts = bot_service.get_starting_balance(bot_id)
     except Exception:  # noqa: BLE001
         pass
+    # Persist this observation so analytics has a row even when the bot is
+    # stopped (runtime poll won't fire).
+    try:
+        from app.execution import balance_history
+        balance_history.record(
+            bot_id=bot_id, balance=b.available, currency=b.currency,
+            source="live_fetch",
+        )
+    except Exception:  # noqa: BLE001
+        pass
     from app.core.time import now_epoch_ms
     return {
         "available": b.available, "currency": b.currency, "total": b.total,
@@ -216,6 +229,28 @@ async def balance_reset_baseline(bot_id: str, _: User = Depends(require("bot:edi
         raise HTTPException(404, "bot not found")
     ok = bot_service.reset_starting_balance(bot_id)
     return {"reset": ok}
+
+
+@router.get("/{bot_id}/balance/history")
+async def balance_history(bot_id: str, since_ms: int | None = None,
+                          until_ms: int | None = None, max_points: int = 1000,
+                          _: User = Depends(require("bot:read"))) -> list[dict]:
+    """Equity curve history for the bot."""
+    from app.execution import balance_history as bh
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    return bh.history(bot_id=bot_id, since_ms=since_ms, until_ms=until_ms, max_points=max_points)
+
+
+@router.get("/{bot_id}/analytics")
+async def bot_analytics(bot_id: str, since_ms: int, until_ms: int,
+                        granularity: str = "hour",
+                        _: User = Depends(require("bot:read"))) -> list[dict]:
+    """Time-bucketed performance metrics for the bot."""
+    from app.execution import balance_history as bh
+    if bot_service.get(bot_id) is None:
+        raise HTTPException(404, "bot not found")
+    return bh.analytics(bot_id=bot_id, since_ms=since_ms, until_ms=until_ms, granularity=granularity)
 
 
 @router.get("/{bot_id}/active-config")

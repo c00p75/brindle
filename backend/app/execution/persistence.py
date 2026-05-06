@@ -170,33 +170,29 @@ def _apply_fill_to_position(s, *, bot_id: str, symbol: str, signed_qty: float, p
         })
 
 
-def list_orders(bot_id: str, limit: int = 100) -> list[dict]:
+def list_orders(bot_id: str, limit: int = 100, since_ms: int | None = None,
+                until_ms: int | None = None) -> list[dict]:
     with session_scope() as s:
-        rows = (
-            s.execute(
-                select(OrderRow)
-                .where(OrderRow.bot_id == bot_id)
-                .order_by(OrderRow.submitted_at_ms.desc())
-                .limit(limit)
-            )
-            .scalars()
-            .all()
-        )
+        q = select(OrderRow).where(OrderRow.bot_id == bot_id)
+        if since_ms is not None:
+            q = q.where(OrderRow.submitted_at_ms >= since_ms)
+        if until_ms is not None:
+            q = q.where(OrderRow.submitted_at_ms <= until_ms)
+        q = q.order_by(OrderRow.submitted_at_ms.desc()).limit(limit)
+        rows = s.execute(q).scalars().all()
         return [_order_dict(r) for r in rows]
 
 
-def list_fills(bot_id: str, limit: int = 100) -> list[dict]:
+def list_fills(bot_id: str, limit: int = 100, since_ms: int | None = None,
+               until_ms: int | None = None) -> list[dict]:
     with session_scope() as s:
-        rows = (
-            s.execute(
-                select(FillRow)
-                .where(FillRow.bot_id == bot_id)
-                .order_by(FillRow.filled_at_ms.desc())
-                .limit(limit)
-            )
-            .scalars()
-            .all()
-        )
+        q = select(FillRow).where(FillRow.bot_id == bot_id)
+        if since_ms is not None:
+            q = q.where(FillRow.filled_at_ms >= since_ms)
+        if until_ms is not None:
+            q = q.where(FillRow.filled_at_ms <= until_ms)
+        q = q.order_by(FillRow.filled_at_ms.desc()).limit(limit)
+        rows = s.execute(q).scalars().all()
         return [_fill_dict(r) for r in rows]
 
 

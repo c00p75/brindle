@@ -283,6 +283,16 @@ async def _poll_balance(bot_id: str, adapter) -> None:
                      bot_id, b.available, b.currency)
     except Exception:  # noqa: BLE001
         pass
+    # Append to the persisted balance history so we can render real equity
+    # curves and drawdown across time, not just whatever's in memory.
+    try:
+        from app.execution import balance_history
+        balance_history.record(
+            bot_id=bot_id, balance=b.available,
+            currency=b.currency, source="poll",
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 async def _poll_contracts(bot_id: str, adapter) -> None:

@@ -148,20 +148,42 @@ export const api = {
   listPositions(botId: string): Promise<Position[]> {
     return request(`/api/bots/${botId}/positions`);
   },
-  listOrders(botId: string, limit = 50): Promise<Order[]> {
-    return request(`/api/bots/${botId}/orders?limit=${limit}`);
+  listOrders(botId: string, limit = 50, since_ms?: number, until_ms?: number): Promise<Order[]> {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (since_ms) q.append("since_ms", String(since_ms));
+    if (until_ms) q.append("until_ms", String(until_ms));
+    return request(`/api/bots/${botId}/orders?${q}`);
   },
-  listFills(botId: string, limit = 50): Promise<Fill[]> {
-    return request(`/api/bots/${botId}/fills?limit=${limit}`);
+  listFills(botId: string, limit = 50, since_ms?: number, until_ms?: number): Promise<Fill[]> {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (since_ms) q.append("since_ms", String(since_ms));
+    if (until_ms) q.append("until_ms", String(until_ms));
+    return request(`/api/bots/${botId}/fills?${q}`);
   },
-  listContracts(botId: string, limit = 50): Promise<Contract[]> {
-    return request(`/api/bots/${botId}/contracts?limit=${limit}`);
+  listContracts(botId: string, limit = 50, since_ms?: number, until_ms?: number): Promise<Contract[]> {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (since_ms) q.append("since_ms", String(since_ms));
+    if (until_ms) q.append("until_ms", String(until_ms));
+    return request(`/api/bots/${botId}/contracts?${q}`);
   },
   contractsSummary(botId: string): Promise<ContractsSummary> {
     return request(`/api/bots/${botId}/contracts/summary`);
   },
   brokerBalance(botId: string): Promise<BrokerBalance> {
     return request(`/api/bots/${botId}/balance`);
+  },
+  resetBalanceBaseline(botId: string): Promise<{ reset: boolean }> {
+    return request(`/api/bots/${botId}/balance/reset-baseline`, { method: "POST" });
+  },
+  listBalanceHistory(botId: string, since_ms?: number, until_ms?: number, max_points = 1000): Promise<BalanceSnapshot[]> {
+    const q = new URLSearchParams({ max_points: String(max_points) });
+    if (since_ms) q.append("since_ms", String(since_ms));
+    if (until_ms) q.append("until_ms", String(until_ms));
+    return request(`/api/bots/${botId}/balance/history?${q}`);
+  },
+  getAnalytics(botId: string, since_ms: number, until_ms: number, granularity = "hour"): Promise<AnalyticsBucket[]> {
+    const q = new URLSearchParams({ since_ms: String(since_ms), until_ms: String(until_ms), granularity });
+    return request(`/api/bots/${botId}/analytics?${q}`);
   },
   listAudit(resourceId?: string): Promise<AuditEvent[]> {
     const q = resourceId ? `?resource_id=${encodeURIComponent(resourceId)}` : "";

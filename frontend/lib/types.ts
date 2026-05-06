@@ -267,3 +267,21 @@ export interface Alert {
   acknowledged_at_ms: number | null;
   metadata: Record<string, unknown>;
 }
+export interface BalanceSnapshot {
+  id: string;
+  bot_id: string;
+  balance: number;
+  currency: string;
+  at_ms: number;
+  source: string;
+}
+
+export interface AnalyticsBucket {
+  bucket_ms: number;
+  pnl: number;
+  staked: number;
+  won: number;
+  lost: number;
+  total: number;
+  win_rate: number;
+}

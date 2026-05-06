@@ -135,6 +135,30 @@ class PositionRow(Base):
     updated_at_ms: Mapped[int] = mapped_column(BigInteger)
 
 
+class BalanceSnapshotRow(Base):
+    """Append-only series of broker balance observations per bot.
+
+    Powers the live equity curve, drawdown, and any "balance at time X"
+    queries. The runtime writes one row per balance poll (~30s); on-demand
+    /balance fetches and lifecycle events (start/stop) also write rows.
+    """
+    __tablename__ = "balance_snapshots"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    bot_id: Mapped[str] = mapped_column(String(64), index=True)
+    balance: Mapped[float] = mapped_column()
+    currency: Mapped[str] = mapped_column(String(8))
+    at_ms: Mapped[int] = mapped_column(BigInteger, index=True)
+    # Why this row exists — useful for filtering / debugging.
+    # "poll" (runtime), "live_fetch" (route on-demand), "manual" (user reset),
+    # "bot_start" / "bot_stop" / "post_contract"
+    source: Mapped[str] = mapped_column(String(24), default="poll")
+
+
+# Composite index for the dominant query: balance series for a bot in a window.
+Index("ix_balance_bot_at", BalanceSnapshotRow.bot_id, BalanceSnapshotRow.at_ms)
+
+
 class ContractRow(Base):
     """Lifecycle of a Deriv binary-option contract.
 

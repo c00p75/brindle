@@ -105,18 +105,16 @@ def summary(bot_id: str) -> dict[str, Any]:
     }
 
 
-def list_recent(bot_id: str, limit: int = 50) -> list[dict[str, Any]]:
+def list_recent(bot_id: str, limit: int = 50, since_ms: int | None = None,
+                until_ms: int | None = None) -> list[dict[str, Any]]:
     with session_scope() as s:
-        rows = (
-            s.execute(
-                sa.select(ContractRow)
-                .where(ContractRow.bot_id == bot_id)
-                .order_by(ContractRow.purchased_at_ms.desc())
-                .limit(limit)
-            )
-            .scalars()
-            .all()
-        )
+        q = sa.select(ContractRow).where(ContractRow.bot_id == bot_id)
+        if since_ms is not None:
+            q = q.where(ContractRow.purchased_at_ms >= since_ms)
+        if until_ms is not None:
+            q = q.where(ContractRow.purchased_at_ms <= until_ms)
+        q = q.order_by(ContractRow.purchased_at_ms.desc()).limit(limit)
+        rows = s.execute(q).scalars().all()
     return [_to_dict(r) for r in rows]
 
 
