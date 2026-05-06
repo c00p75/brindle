@@ -254,16 +254,40 @@ function ConfigEditor() {
             <div>
               <label>Adapter</label>
               <select value={cfg.broker.type}
-                onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, type: e.target.value, symbol_namespace: e.target.value === "paper" ? "paper" : cfg.broker.symbol_namespace } })}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  const environment = type === "paper" ? "paper" : "demo";
+                  const symbol_namespace = type === "paper" ? "paper" : "deriv";
+                  const credential_ref = type === "paper" ? "secret://paper/none" : cfg.broker.credential_ref;
+                  setCfg({
+                    ...cfg,
+                    broker: {
+                      ...cfg.broker,
+                      type,
+                      environment,
+                      symbol_namespace,
+                      credential_ref
+                    }
+                  });
+                }}
                 style={{ width: "100%" }}>
                 {adapters.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
             <div>
               <label>Environment</label>
-              <input value={cfg.broker.environment}
+              <select value={cfg.broker.environment}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, environment: e.target.value } })}
-                placeholder="paper / demo" style={{ width: "100%" }} />
+                style={{ width: "100%" }}>
+                {cfg.broker.type === "paper" ? (
+                  <option value="paper">paper</option>
+                ) : (
+                  <>
+                    <option value="demo">demo</option>
+                    <option value="live" disabled>live (restricted)</option>
+                  </>
+                )}
+              </select>
             </div>
             <div>
               <label>Account ID</label>
@@ -275,16 +299,22 @@ function ConfigEditor() {
               <label>Credential reference</label>
               <input value={cfg.broker.credential_ref}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, credential_ref: e.target.value } })}
-                placeholder="secret://..." style={{ width: "100%" }} />
+                placeholder="secret://..." style={{ width: "100%" }}
+                readOnly={cfg.broker.type === "paper"} />
               <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>
-                Inline secrets are rejected. Store secrets in backend secrets store.
+                {cfg.broker.type === "paper" 
+                  ? "Not required for paper trading." 
+                  : "Inline secrets are rejected. Store secrets in backend secrets store."}
               </p>
             </div>
             <div>
               <label>Symbol namespace</label>
-              <input value={cfg.broker.symbol_namespace}
+              <select value={cfg.broker.symbol_namespace}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, symbol_namespace: e.target.value } })}
-                style={{ width: "100%" }} />
+                style={{ width: "100%" }}>
+                <option value="paper">paper</option>
+                <option value="deriv">deriv</option>
+              </select>
             </div>
           </div>
         </section>

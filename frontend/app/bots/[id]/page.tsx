@@ -204,38 +204,6 @@ function BotDetails() {
         </div>
       </div>
 
-      {/* Live stats — broker balance + contract P&L */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
-        <StatCard
-          label="Broker balance"
-          value={balance && balance.available != null && balance.currency
-            ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)} ${balance.currency}`
-            : "—"}
-          hint={balance?.source === "runtime_cache" ? "live" : balance?.source === "live_fetch" ? "fetched" : balance?.source === "fetch_error" ? "error" : ""}
-        />
-        <StatCard
-          label="Realized P&L"
-          value={contractsSummary
-            ? `${contractsSummary.realized_pnl >= 0 ? "+" : ""}$${contractsSummary.realized_pnl.toFixed(2)}`
-            : "—"}
-          valueColor={contractsSummary
-            ? (contractsSummary.realized_pnl >= 0 ? "#008265" : "#cc2626")
-            : undefined}
-        />
-        <StatCard
-          label="Contracts (open / W / L)"
-          value={contractsSummary
-            ? `${contractsSummary.open_count} / ${contractsSummary.won_count} / ${contractsSummary.lost_count}`
-            : "—"}
-        />
-        <StatCard
-          label="Win rate"
-          value={contractsSummary && (contractsSummary.won_count + contractsSummary.lost_count) > 0
-            ? `${(contractsSummary.win_rate * 100).toFixed(1)}%`
-            : "—"}
-        />
-      </div>
-
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>
         {can(user?.role, "config:draft") && (
@@ -277,17 +245,68 @@ function BotDetails() {
       {/* Strategy monitor panel */}
       {/* Moved outside the main content column */}
       
-      {/* Stats Row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
-        <StatCard label="Realized PnL" value={`${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}`} color={totalPnl >= 0 ? "#008265" : "#cc2626"} />
-        <StatCard label="Filled Orders" value={String(filledOrders)} color="#0e0e0e" subtext={rejectedOrders > 0 ? `${rejectedOrders} rejected` : undefined} subtextColor="#cc2626" />
-        <StatCard label="Open Positions" value={String(positions.filter(p => p.quantity !== 0).length)} color="#0e0e0e" />
-        <StatCard label="Total Fills" value={String(totalTrades)} color="#0e0e0e" subtext={totalTrades > 0 ? `${((winTrades / totalTrades) * 100).toFixed(0)}% win rate` : undefined} subtextColor="#008265" />
-      </div>
+      {/* Stats Row — broker balance + contract P&L (the source-of-truth metrics).
+          For Deriv binary-option bots, position-based PnL is meaningless — every
+          contract is a fixed-stake bet, not a forex position. So we show:
+          - actual broker balance (live)
+          - net change since session start
+          - contract counts and win rate (with profitability threshold context) */}
+      {(() => {
+        const cs = contractsSummary;
+        const settled = cs ? cs.won_count + cs.lost_count : 0;
+        const winPct = cs && settled > 0 ? cs.win_rate * 100 : null;
+        // Binary-option breakeven is ~52% on Deriv's 92.5% payout — color
+        // anything below that as a losing trader, not green-because-positive.
+        const winColor = winPct == null ? "#aaaaaa"
+          : winPct >= 52 ? "#008265"
+          : winPct >= 50 ? "#b37600"
+          : "#cc2626";
+        const isDerivBot = bot.active_config_version != null
+          && versions.find(v => v.version === bot.active_config_version)?.config?.broker?.type === "deriv";
 
-      {/* Equity Curve (always shown) */}
+        const balValue = balance && balance.available != null && balance.currency
+          ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)}`
+          : "—";
+        // Net change is computed against $10K demo default; only meaningful for
+        // brand-new demo accounts. Don't confuse with cumulative session P&L.
+        const netChange = balance?.available != null ? balance.available - 10000 : null;
+        const netStr = netChange == null ? undefined : `${netChange >= 0 ? "+" : ""}$${netChange.toFixed(2)} vs $10k start`;
+        const netColor = netChange == null ? "#aaaaaa" : netChange >= 0 ? "#008265" : "#cc2626";
+
+        const pnlValue = cs ? `${cs.realized_pnl >= 0 ? "+" : ""}$${cs.realized_pnl.toFixed(2)}` : "—";
+        const pnlColor = cs ? (cs.realized_pnl >= 0 ? "#008265" : "#cc2626") : "#aaaaaa";
+
+        return (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+            <StatCard label="Broker balance" value={balValue} color="#0e0e0e"
+              subtext={netStr} subtextColor={netColor} />
+            <StatCard label={isDerivBot ? "Contracts P&L (tracked)" : "Realized PnL"}
+              value={pnlValue} color={pnlColor}
+              subtext={isDerivBot ? "internal record — broker balance is source of truth" : undefined}
+              subtextColor="#aaaaaa" />
+            <StatCard label="Contracts (open / won / lost)"
+              value={cs ? `${cs.open_count} / ${cs.won_count} / ${cs.lost_count}` : "—"}
+              color="#0e0e0e"
+              subtext={cs && cs.total_count > 0 ? `${cs.total_count} total` : undefined} />
+            <StatCard label="Win rate"
+              value={winPct != null ? `${winPct.toFixed(1)}%` : "—"}
+              color={winColor}
+              subtext={winPct != null ? (winPct >= 52 ? "above breakeven" : "below 52% breakeven") : undefined}
+              subtextColor={winColor} />
+          </div>
+        );
+      })()}
+
+      {/* Equity Curve (always shown).
+          NOTE: For Deriv binary-option bots this is computed from position-style
+          (close × qty) math on fill prices, NOT from actual contract payouts.
+          It's useful as a strategy-behavior visualization but is NOT real broker
+          P&L. Compare against the "Broker balance" card above for ground truth. */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2 style={{ marginBottom: 14 }}>Equity Curve</h2>
+        <h2 style={{ marginBottom: 4 }}>Position curve</h2>
+        <p style={{ fontSize: 11, color: "#aaaaaa", marginTop: 0, marginBottom: 14 }}>
+          Strategy-behavior metric (mark-to-market on fill prices). Real broker P&L is the balance card above.
+        </p>
         {fills.length === 0 ? (
           <div style={{ padding: "32px 0", textAlign: "center", color: "#aaaaaa" }}>
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style={{ margin: "0 auto 12px", display: "block", opacity: 0.4 }}>
@@ -837,18 +856,3 @@ function EquityChart({ fills }: { fills: Fill[] }) {
   );
 }
 
-function StatCard({ label, value, valueColor, hint }: {
-  label: string; value: string; valueColor?: string; hint?: string;
-}) {
-  return (
-    <div className="card" style={{ padding: "14px 16px" }}>
-      <div style={{ fontSize: 11, color: "#686868", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
-        <span>{label}</span>
-        {hint && <span style={{ textTransform: "none", letterSpacing: 0, color: "#aaa", fontWeight: 400 }}>{hint}</span>}
-      </div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: valueColor ?? "#0e0e0e", fontVariantNumeric: "tabular-nums" }}>
-        {value}
-      </div>
-    </div>
-  );
-}
