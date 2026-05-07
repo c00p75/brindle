@@ -229,21 +229,21 @@ function ConfigEditor() {
               <input type="number" min={1} value={cfg.risk.max_position_notional}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_position_notional: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
-              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation}</p>}
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation ?? 100}</p>}
             </div>
             <div>
               <label>Max total exposure (USD)</label>
               <input type="number" min={1} value={cfg.risk.max_total_exposure}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_total_exposure: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
-              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation * 2}</p>}
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${(bot.allocation ?? 100) * 2}</p>}
             </div>
             <div>
               <label>Max daily loss (USD)</label>
               <input type="number" min={1} value={cfg.risk.max_daily_loss}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_daily_loss: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
-              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${Math.round(bot.allocation * 0.3)}</p>}
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${Math.round((bot.allocation ?? 100) * 0.3)}</p>}
             </div>
             <div>
               <label>Max drawdown (%)</label>
