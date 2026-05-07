@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("marketdata")
 
-LIVE_STALE_THRESHOLD_MS = 30_000  # 30 s threshold (relaxed for high-concurrency tournament)
-WARM_UP_DELAY_S = 1.5  # increased to avoid rate-limiting on bulk startup
+LIVE_STALE_THRESHOLD_MS = 15_000  # 15 s without a fresh tick → stale
+WARM_UP_DELAY_S = 0.5  # delay between warm-up ticks to avoid rate-limiting
 
 
 @runtime_checkable

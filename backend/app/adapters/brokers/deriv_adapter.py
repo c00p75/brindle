@@ -75,6 +75,8 @@ class DerivAdapter:
         self._pending: dict[int, asyncio.Future[dict]] = {}
         self._req_counter = 0
         self._recv_task: asyncio.Task | None = None
+        self._tickers: dict[str, Ticker] = {}
+        self._subscriptions: set[str] = set()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -122,6 +124,20 @@ class DerivAdapter:
                     fut = self._pending.pop(req_id, None)
                     if fut is not None and not fut.done():
                         fut.set_result(msg)
+                
+                # Handle incoming ticks from subscriptions
+                if "tick" in msg:
+                    t = msg["tick"]
+                    native = t.get("symbol", "")
+                    try:
+                        symbol = self._mapper.to_canonical(native)
+                    except ValueError:
+                        symbol = native
+                    price = float(t.get("quote", 0))
+                    self._tickers[symbol] = Ticker(
+                        symbol=symbol, bid=price, ask=price, 
+                        ts_ms=int(t.get("epoch", 0)) * 1000 or now_epoch_ms()
+                    )
         except (ConnectionClosed, Exception) as exc:
             log.warning("deriv recv_loop ended: %s", exc)
             self._connected = False
@@ -223,19 +239,31 @@ class DerivAdapter:
 
     async def get_ticker(self, symbol: str) -> Ticker:
         native = self._mapper.to_native(symbol)
-        resp = await self._send({
-            "ticks_history": native,
-            "count": 1,
-            "end": "latest",
-            "style": "ticks",
-        })
-        if "error" in resp:
-            raise ValueError(f"deriv get_ticker error for {symbol!r}: {resp['error']['message']}")
-        prices = resp.get("history", {}).get("prices", [])
-        if not prices:
-            raise ValueError(f"no tick data returned for {symbol!r}")
-        price = float(prices[-1])
-        return Ticker(symbol=symbol, bid=price, ask=price, ts_ms=now_epoch_ms())
+        
+        # If not subscribed yet, send a subscription request
+        if symbol not in self._subscriptions:
+            log.info("subscribing to deriv ticks for %s", symbol)
+            # We don't await the response here to avoid blocking; 
+            # the recv_loop will pick up the subscription confirmation and ticks.
+            asyncio.create_task(self._send({"ticks": native, "subscribe": 1}))
+            self._subscriptions.add(symbol)
+            
+            # Since we just subscribed, we might not have a ticker yet.
+            # Do a one-time poll to seed the cache so the strategy doesn't wait.
+            resp = await self._send({
+                "ticks_history": native,
+                "count": 1,
+                "end": "latest",
+                "style": "ticks",
+            })
+            if "history" in resp and resp["history"].get("prices"):
+                price = float(resp["history"]["prices"][-1])
+                self._tickers[symbol] = Ticker(symbol=symbol, bid=price, ask=price, ts_ms=now_epoch_ms())
+
+        if symbol in self._tickers:
+            return self._tickers[symbol]
+        
+        raise ValueError(f"no tick data available for {symbol!r}")
 
     # ------------------------------------------------------------------
     # Account state

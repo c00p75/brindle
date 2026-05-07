@@ -31,8 +31,8 @@ from app.strategies.registry import create_strategy
 
 log = logging.getLogger("runtime")
 
-# Tunable. Increased to 3.0s to avoid rate-limiting with 12+ bots.
-TICK_INTERVAL_S = 3.0
+# Tunable. Kept short for snappy paper trading; real adapters would tune higher.
+TICK_INTERVAL_S = 1.0
 # Sweep open contracts for settlement every N ticks (~10s with 1s tick).
 CONTRACT_POLL_INTERVAL = 10
 # Poll broker balance every N ticks (~30s) for the UI.
