@@ -316,13 +316,19 @@ function BotDetails() {
           const pnlValue = `${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`;
           const pnlPctStr = `${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`;
 
+          const balValue = balance && balance.available != null && balance.currency
+            ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)}`
+            : "—";
+
           return (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
               <StatCard label="Virtual Balance" value={`$${virtualBalance.toFixed(2)}`} color="#4f46e5"
-                subtext={`$${allocation.toFixed(2)} starting allocation`} subtextColor="#aaaaaa" />
+                subtext={`$${allocation.toFixed(2)} allocation`} subtextColor="#aaaaaa" />
               <StatCard label="Virtual P&L" value={pnlValue} color={pnl >= 0 ? "#008265" : "#cc2626"}
-                subtext={`${pnlPctStr} change on allocation`} subtextColor={pnl >= 0 ? "#008265" : "#cc2626"} />
-              <StatCard label="Contracts (open / won / lost)"
+                subtext={`${pnlPctStr} change`} subtextColor={pnl >= 0 ? "#008265" : "#cc2626"} />
+              <StatCard label="Broker balance" value={balValue} color="#0e0e0e"
+                subtext="total connected account" subtextColor="#aaaaaa" />
+              <StatCard label="Contracts (open/won/lost)"
                 value={cs ? `${cs.open_count} / ${cs.won_count} / ${cs.lost_count}` : "—"}
                 color="#0e0e0e"
                 subtext={cs && cs.total_count > 0 ? `${cs.total_count} total` : undefined} />
