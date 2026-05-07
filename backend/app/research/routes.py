@@ -53,3 +53,81 @@ async def list_backtests(_: User = Depends(require("bot:read"))) -> list[dict]:
             import json
             runs.append(json.loads(metrics_file.read_text()))
     return runs
+
+
+@router.get("/observation_report", response_model=list[dict])
+async def get_observation_report(
+    since_hours: int = 24, _: User = Depends(require("bot:read"))
+) -> list[dict]:
+    from app.bots import service as bot_service
+    from app.configs import service as config_service
+    from app.execution import contracts as contracts_svc
+    from app.alerts import service as alert_service
+    from app.research import observation as obs_store
+    from app.core.time import now_epoch_ms
+    from app.db.orm import AlertRow
+    from app.db.engine import session_scope
+    from sqlalchemy import select, func
+
+    since_ms = now_epoch_ms() - (since_hours * 3600 * 1000)
+    bots = bot_service.list_bots()
+    # Filter non-archived
+    from app.bots.models import BotState
+    bots = [b for b in bots if b.state != BotState.ARCHIVED]
+
+    report = []
+    for bot in bots:
+        # 1. Performance
+        summ = contracts_svc.summary(bot.id, since_ms=since_ms)
+        win_rate = 0.0
+        settled = summ["won_count"] + summ["lost_count"]
+        if settled > 0:
+            win_rate = summ["won_count"] / settled
+        
+        recent = contracts_svc.list_recent(bot.id, limit=1)
+        last_trade_at = recent[0]["purchased_at_ms"] if recent else None
+
+        # 2. Risk / Alerts
+        rejection_count = 0
+        auto_pause_count = 0
+        with session_scope() as s:
+            rejection_count = s.execute(
+                select(func.count(AlertRow.id)).where(
+                    AlertRow.bot_id == bot.id,
+                    AlertRow.created_at_ms >= since_ms,
+                    AlertRow.message.like("risk rejection%")
+                )
+            ).scalar() or 0
+            auto_pause_count = s.execute(
+                select(func.count(AlertRow.id)).where(
+                    AlertRow.bot_id == bot.id,
+                    AlertRow.created_at_ms >= since_ms,
+                    AlertRow.message.like("auto-pausing bot%")
+                )
+            ).scalar() or 0
+
+        # 3. Signals / Ticks
+        histogram = obs_store.get_histogram(bot.id)
+        tick_count = obs_store.get_tick_count(bot.id)
+
+        # 4. Config metadata
+        active = config_service.active_version(bot.id)
+        strategy_id = active.config.strategy.strategy_id if active else "unknown"
+        symbols = active.config.symbols if active else []
+
+        report.append({
+            "bot_id": bot.id,
+            "name": bot.name,
+            "strategy_id": strategy_id,
+            "symbols": symbols,
+            "trades": summ["total_count"],
+            "win_rate": win_rate,
+            "realized_pnl": summ["total_pnl"],
+            "rejection_count": rejection_count,
+            "auto_pauses": auto_pause_count,
+            "last_trade_at_ms": last_trade_at,
+            "tick_count": tick_count,
+            "signal_status_histogram": histogram
+        })
+    
+    return report

@@ -260,6 +260,9 @@ export const api = {
   listBacktests(): Promise<BacktestMetrics[]> {
     return request("/api/research/backtests");
   },
+  getObservationReport(hours: number = 24): Promise<any[]> {
+    return request(`/api/research/observation_report?since_hours=${hours}`);
+  },
   totpSetup(): Promise<TOTPSetupResponse> {
     return request("/api/auth/totp/setup", { method: "POST" });
   },

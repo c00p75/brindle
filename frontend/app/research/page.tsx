@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api } from "@/lib/api";
@@ -94,10 +95,17 @@ function Research() {
 
   return (
     <>
-      <h1>Research — Backtest Runner</h1>
-      <p style={{ color: "#64748b", fontSize: 14 }}>
-        Run deterministic paper-trading simulations. Results are saved to <code>experiments/</code>.
-      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1>Research — Backtest Runner</h1>
+          <p style={{ color: "#64748b", fontSize: 14 }}>
+            Run deterministic paper-trading simulations. Results are saved to <code>experiments/</code>.
+          </p>
+        </div>
+        <Link href="/research/observation" className="btn" style={{ background: "var(--gray)", color: "var(--text)" }}>
+          Portfolio Observation →
+        </Link>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <section className="card">

@@ -529,6 +529,13 @@ def _publish_tick(bot_id: str, strategy: object, ctx: StrategyContext, bar: obje
         if debug_fn is None:
             return
         state = debug_fn(ctx)
+        
+        # Phase 2: Record tick status for observation report
+        from app.research.observation import record_tick
+        signal = state.get("signal", {})
+        status = signal.get("status", "unknown")
+        record_tick(bot_id, status)
+
         get_event_bus().publish(bot_id, "tick", {
             "symbol": ctx.symbol,
             "ts_ms": getattr(bar, "ts_ms", 0),
