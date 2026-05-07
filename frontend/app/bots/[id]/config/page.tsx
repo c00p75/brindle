@@ -9,34 +9,37 @@ import { api, getUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
 import type { BotConfig, ConfigVersion, DiffEntry } from "@/lib/types";
 
-const DEFAULT_CONFIG = (botId: string): BotConfig => ({
-  bot_id: botId,
-  version: 1,
-  name: "new-config",
-  description: "",
-  strategy: {
-    strategy_id: "trend_v1",
-    params: { fast: 5, slow: 20, qty: 1000, min_cross_pct: 0.02, cooldown_ticks: 10 },
-  },
-  risk: {
-    max_position_notional: 5000,
-    max_total_exposure: 20000,
-    max_daily_loss: 500,
-    max_drawdown_pct: 10,
-    max_open_orders: 5,
-    max_consecutive_losses: 0,
-    risk_per_trade_pct: null,
-    kill_switch: false,
-  },
-  broker: {
-    type: "deriv",
-    environment: "demo",
-    account_id: "",
-    credential_ref: "secret://env/DERIV_API_TOKEN",
-    symbol_namespace: "deriv",
-  },
-  symbols: ["V75/USD"],
-});
+const DEFAULT_CONFIG = (botId: string, allocation: number): BotConfig => {
+  const alloc = allocation || 100;
+  return {
+    bot_id: botId,
+    version: 1,
+    name: "new-config",
+    description: "",
+    strategy: {
+      strategy_id: "trend_v1",
+      params: { fast: 5, slow: 20, min_cross_pct: 0.02, cooldown_ticks: 10 },
+    },
+    risk: {
+      max_position_notional: alloc,
+      max_total_exposure: alloc * 5,
+      max_daily_loss: Math.max(20, alloc * 0.3),
+      max_drawdown_pct: 25,
+      max_open_orders: 5,
+      max_consecutive_losses: 0,
+      risk_per_trade_pct: 10,
+      kill_switch: false,
+    },
+    broker: {
+      type: "deriv",
+      environment: "demo",
+      account_id: "",
+      credential_ref: "secret://env/DERIV_API_TOKEN",
+      symbol_namespace: "deriv",
+    },
+    symbols: ["V75/USD"],
+  };
+};
 
 export default function ConfigEditorPage() {
   return (
@@ -52,7 +55,8 @@ export default function ConfigEditorPage() {
 function ConfigEditor() {
   const { id } = useParams<{ id: string }>();
   const user = getUser();
-  const [cfg, setCfg] = useState<BotConfig>(() => DEFAULT_CONFIG(id));
+  const [bot, setBot] = useState<Bot | null>(null);
+  const [cfg, setCfg] = useState<BotConfig>(() => DEFAULT_CONFIG(id, 100));
   const [adapters, setAdapters] = useState<string[]>([]);
   const [strategies, setStrategies] = useState<string[]>([]);
   const [paramSchema, setParamSchema] = useState<Record<string, unknown> | null>(null);
@@ -66,11 +70,21 @@ function ConfigEditor() {
   useEffect(() => {
     (async () => {
       try {
-        const [a, s, ac] = await Promise.all([api.listAdapters(id), api.listStrategies(id), api.activeConfig(id)]);
+        const [a, s, ac, b] = await Promise.all([
+          api.listAdapters(id),
+          api.listStrategies(id),
+          api.activeConfig(id),
+          api.getBot(id)
+        ]);
         setAdapters(a);
         setStrategies(s);
         setActive(ac);
-        if (ac) setCfg({ ...ac.config, bot_id: id });
+        setBot(b);
+        if (ac) {
+          setCfg({ ...ac.config, bot_id: id });
+        } else if (b) {
+          setCfg(DEFAULT_CONFIG(id, b.allocation));
+        }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "failed");
       }
@@ -215,18 +229,21 @@ function ConfigEditor() {
               <input type="number" min={1} value={cfg.risk.max_position_notional}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_position_notional: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation}</p>}
             </div>
             <div>
               <label>Max total exposure (USD)</label>
               <input type="number" min={1} value={cfg.risk.max_total_exposure}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_total_exposure: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation * 2}</p>}
             </div>
             <div>
               <label>Max daily loss (USD)</label>
               <input type="number" min={1} value={cfg.risk.max_daily_loss}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_daily_loss: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
+              {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${Math.round(bot.allocation * 0.3)}</p>}
             </div>
             <div>
               <label>Max drawdown (%)</label>

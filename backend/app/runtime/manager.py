@@ -262,11 +262,25 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                         consecutive_risk_rejects = 0
 
                     if consecutive_risk_rejects >= 5:
+                        notional_estimate = 0.0
+                        for intent in intents:
+                            if intent.notional:
+                                notional_estimate += intent.notional
+                            elif intent.quantity:
+                                notional_estimate += intent.quantity * bar.close
+
                         emit_alert(
                             severity=Severity.CRITICAL,
                             source="runtime",
                             message="auto-pausing bot after 5 consecutive risk rejections",
                             bot_id=bot.id,
+                            metadata={
+                                "last_reason": result.reason,
+                                "last_intent_notional": notional_estimate,
+                                "cap_max_position_notional": cfg.risk.max_position_notional,
+                                "cap_max_total_exposure": cfg.risk.max_total_exposure,
+                                "allocation": bot.allocation,
+                            },
                         )
                         from app.bots import service as bot_service
                         try:

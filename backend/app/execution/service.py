@@ -52,11 +52,22 @@ class ExecutionService:
         # 2) Risk gate
         decision = self.risk.check(intent, portfolio, mark_price)
         if not decision.allowed:
+            notional_estimate = intent.notional
+            if notional_estimate is None and intent.quantity is not None:
+                notional_estimate = intent.quantity * mark_price
+
             emit_alert(
                 severity=Severity.WARNING,
                 source="risk",
                 message=f"risk rejection: {decision.reason}",
                 bot_id=intent.bot_id,
+                metadata={
+                    "reason": decision.reason,
+                    "intent_notional": notional_estimate,
+                    "cap_max_position_notional": self.risk.limits.max_position_notional,
+                    "cap_max_total_exposure": self.risk.limits.max_total_exposure,
+                    "equity": portfolio.equity,
+                },
             )
             result = ExecutionResult(
                 status=ExecutionStatus.REJECTED,

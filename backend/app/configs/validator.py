@@ -6,7 +6,7 @@ from app.adapters.symbols.mapping import get_mapper
 from app.bots.models import BotConfig
 
 
-def validate_bot_config(cfg: BotConfig) -> tuple[list[str], list[str]]:
+def validate_bot_config(cfg: BotConfig, bot_allocation: float | None = None) -> tuple[list[str], list[str]]:
     """Return (errors, warnings)."""
     errors: list[str] = []
     warnings: list[str] = []
@@ -32,6 +32,21 @@ def validate_bot_config(cfg: BotConfig) -> tuple[list[str], list[str]]:
     if cfg.risk.max_drawdown_pct > 50:
         warnings.append("risk.max_drawdown_pct > 50% is unusually permissive")
 
+    if bot_allocation is not None:
+        if cfg.risk.max_position_notional > bot_allocation * 5:
+            warnings.append(
+                f"risk.max_position_notional (${cfg.risk.max_position_notional:.0f}) "
+                f"is much larger than allocation (${bot_allocation:.0f})"
+            )
+
+        stake_est = _estimate_intent_notional(cfg)
+        if stake_est is not None and stake_est > cfg.risk.max_position_notional:
+            errors.append(
+                f"strategy will produce intents of ~${stake_est:.0f}, "
+                f"exceeds risk.max_position_notional (${cfg.risk.max_position_notional:.0f}) — "
+                f"every order will be rejected"
+            )
+
     if not cfg.symbols:
         errors.append("symbols must be non-empty")
 
@@ -49,6 +64,29 @@ def validate_bot_config(cfg: BotConfig) -> tuple[list[str], list[str]]:
             ))
 
     return errors, warnings
+
+
+def _estimate_intent_notional(cfg: BotConfig) -> float | None:
+    params = cfg.strategy.params or {}
+
+    # 1. Notional-based strategies (Deriv specific)
+    if cfg.strategy.strategy_id in {"deriv_v1", "scalp_v1"}:
+        stake = params.get("stake")
+        return float(stake) if stake is not None else None
+
+    # 2. Quantity-based strategies (Trend, Bollinger, etc.)
+    # If risk_per_trade_pct is set, the strategy will ignore 'qty' and size dynamically.
+    # In that case, we can't estimate a static notional easily without a price.
+    if cfg.risk.risk_per_trade_pct is not None and cfg.risk.risk_per_trade_pct > 0:
+        return None
+
+    qty = params.get("qty")
+    if qty is not None:
+        # We don't have mark_price here, so we treat 1.0 as a floor (e.g. for crypto/forex)
+        # or just return the quantity as a 'notional proxy' if the symbol is USD-denominated.
+        return float(qty)
+
+    return None
 
 
 def _validate_strategy_params(

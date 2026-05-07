@@ -118,10 +118,15 @@ def create_draft(
 def validate(
     *, actor_email: str, actor_role: str, bot_id: str, version: int
 ) -> ConfigVersion:
+    from app.db.orm import BotRow
     with session_scope() as s:
         row = s.get(ConfigVersionRow, (bot_id, version))
         if row is None:
             raise ValueError("config version not found")
+        
+        bot = s.get(BotRow, bot_id)
+        allocation = bot.allocation if bot else None
+
         current_status = ConfigStatus(row.status)
         if current_status not in {
             ConfigStatus.DRAFT,
@@ -130,7 +135,7 @@ def validate(
         }:
             raise ValueError(f"cannot validate config in status {current_status.value}")
         cfg = BotConfig.model_validate(row.config)
-        errors, warnings = validate_bot_config(cfg)
+        errors, warnings = validate_bot_config(cfg, bot_allocation=allocation)
         row.validation_errors = errors
         row.validation_warnings = warnings
         row.status = (
