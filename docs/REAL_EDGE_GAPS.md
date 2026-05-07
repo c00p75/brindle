@@ -4,6 +4,46 @@ This document is an **honest accounting** of where Brindle stands as a research
 platform versus what would be required to actually source profitable trading
 edge. Read it before considering live or even demo deployment with real money.
 
+## Strategy library — what's in vs what's missing
+
+The QuantVPS "Top 20 Trading Bot Strategies" article (March 2026) was the
+checklist. Here's the honest scorecard:
+
+**Implemented (12)**:
+- `trend_v1` — trend following (SMA crossover)
+- `regime_v1` — ADX-gated trend follower
+- `bollinger_v1` — mean reversion (Bollinger Bands)
+- `macd_v1` — momentum (MACD crossover)
+- `deriv_v1` — Deriv-specific SMA + RSI
+- `grid_v1` — grid trading
+- `dca_v1` — dollar-cost averaging
+- `orb_v1` — opening range breakout
+- `vol_breakout_v1` — ATR volatility expansion
+- `scalp_v1` — micro-move scalper with TP/SL
+- `range_v1` — fixed support/resistance trader
+- `mm_v1` — basic market making (simulated, no L2)
+
+**Genuinely blocked (need external data or infra)**:
+- *Arbitrage* — needs multiple exchange connections + price-feed
+  comparator. Brindle's adapter framework supports it but we don't have
+  multi-broker accounts to compare against.
+- *HFT* — needs co-located servers, sub-millisecond latency. Wrong
+  architectural target for a hosted FastAPI service.
+- *News-Based / Sentiment / Event-Driven* — need paid news/social/economic
+  data feeds. Detailed in the gap sections below.
+
+**Architecturally deferred (buildable but real lift)**:
+- *Pair Trading* — strategies currently see only their own symbol's bars
+  (`source.history(symbol)`). Pair trading needs simultaneous access to
+  two correlated symbols' bar streams plus cointegration math. Real
+  framework work.
+- *Machine Learning* — implementing it well means: feature engineering
+  pipeline, training/inference split, model versioning, walk-forward
+  retraining, etc. A toy logistic regression would be misleading; a
+  serious one is a multi-week project.
+- *Portfolio Rebalancing* — only meaningful for multi-symbol bots with
+  declared target weights. Needs config schema work + rebalance scheduler.
+
 ## What this iteration delivered
 
 | Component | Status | Notes |

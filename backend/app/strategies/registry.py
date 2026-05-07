@@ -11,9 +11,13 @@ from app.strategies.dca import DcaV1
 from app.strategies.deriv import DerivV1
 from app.strategies.grid import GridV1
 from app.strategies.macd import MacdV1
+from app.strategies.market_making import MarketMakingV1
 from app.strategies.orb import OrbV1
+from app.strategies.range import RangeV1
 from app.strategies.regime import RegimeV1
+from app.strategies.scalp import ScalpV1
 from app.strategies.trend import TrendV1
+from app.strategies.vol_breakout import VolBreakoutV1
 
 log = logging.getLogger("strategies")
 
@@ -26,6 +30,10 @@ STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "grid_v1": GridV1,
     "dca_v1": DcaV1,
     "orb_v1": OrbV1,
+    "vol_breakout_v1": VolBreakoutV1,
+    "scalp_v1": ScalpV1,
+    "range_v1": RangeV1,
+    "mm_v1": MarketMakingV1,
 }
 
 
