@@ -172,6 +172,9 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 # patterns the daily-loss limit may be too coarse to catch.
                 if _loss_streak_breached(bot, cfg):
                     return
+                # Allocation depletion stop — stop if the virtual budget is gone.
+                if _allocation_depleted(bot, cfg):
+                    return
             # Every BALANCE_POLL_INTERVAL ticks, refresh broker balance for the UI.
             if tick_count % BALANCE_POLL_INTERVAL == 0:
                 await _poll_balance(bot.id, adapter)
@@ -444,6 +447,36 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
             bot_id=bot.id,
         )
         log.warning("drawdown auto-stop bot=%s: %s", bot.id, reason)
+        try:
+            bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+    return False
+
+
+def _allocation_depleted(bot: Bot, cfg: BotConfig) -> bool:
+    """Auto-pause if the bot's virtual allocation has been fully lost.
+    
+    If allocation is 100 and realized_pnl is -101, the bot must stop.
+    """
+    if not bot.allocation:
+        return False
+
+    from app.execution import contracts as contracts_svc
+    summary = contracts_svc.summary(bot.id)
+    pnl = summary["realized_pnl"]
+    effective = bot.allocation + pnl
+
+    if effective <= 0:
+        emit_alert(
+            severity=Severity.CRITICAL,
+            source="runtime",
+            message=f"auto-pausing bot — virtual allocation depleted (${effective:.2f} remaining)",
+            bot_id=bot.id,
+        )
+        log.warning("allocation-depletion auto-stop bot=%s balance=%.2f", bot.id, effective)
+        from app.bots import service as bot_service
         try:
             bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
         except Exception:  # noqa: BLE001
