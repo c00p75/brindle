@@ -168,8 +168,12 @@ export const api = {
     if (until_ms) q.append("until_ms", String(until_ms));
     return request(`/api/bots/${botId}/contracts?${q}`);
   },
-  contractsSummary(botId: string): Promise<ContractsSummary> {
-    return request(`/api/bots/${botId}/contracts/summary`);
+  contractsSummary(botId: string, since_ms?: number, until_ms?: number): Promise<ContractsSummary> {
+    const params: string[] = [];
+    if (since_ms != null) params.push(`since_ms=${since_ms}`);
+    if (until_ms != null) params.push(`until_ms=${until_ms}`);
+    const q = params.length ? `?${params.join("&")}` : "";
+    return request(`/api/bots/${botId}/contracts/summary${q}`);
   },
   brokerBalance(botId: string): Promise<BrokerBalance> {
     return request(`/api/bots/${botId}/balance`);

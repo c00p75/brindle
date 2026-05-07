@@ -182,6 +182,9 @@ export interface ContractsSummary {
   total_payout: number;
   realized_pnl: number;
   win_rate: number;
+  // echoed back by the backend so the UI can label cards with the window
+  since_ms: number | null;
+  until_ms: number | null;
 }
 
 export interface BrokerBalance {

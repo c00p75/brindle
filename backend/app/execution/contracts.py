@@ -83,12 +83,21 @@ def list_open_ids(bot_id: str) -> list[str]:
     return [r[0] for r in rows]
 
 
-def summary(bot_id: str) -> dict[str, Any]:
-    """Aggregate stats for the bot's contracts. Authoritative P&L for Deriv bots."""
+def summary(bot_id: str, *, since_ms: int | None = None,
+            until_ms: int | None = None) -> dict[str, Any]:
+    """Aggregate stats for the bot's contracts within an optional time window.
+
+    Window is applied to `purchased_at_ms`. Without bounds the result is
+    all-time. Open contracts straddling the window edge are still included
+    if they were purchased within it.
+    """
     with session_scope() as s:
-        rows = s.execute(
-            sa.select(ContractRow).where(ContractRow.bot_id == bot_id)
-        ).scalars().all()
+        q = sa.select(ContractRow).where(ContractRow.bot_id == bot_id)
+        if since_ms is not None:
+            q = q.where(ContractRow.purchased_at_ms >= since_ms)
+        if until_ms is not None:
+            q = q.where(ContractRow.purchased_at_ms <= until_ms)
+        rows = s.execute(q).scalars().all()
     open_ = [r for r in rows if r.status == "open"]
     won = [r for r in rows if r.status == "won"]
     lost = [r for r in rows if r.status == "lost"]
@@ -102,6 +111,8 @@ def summary(bot_id: str) -> dict[str, Any]:
         "total_payout": sum((r.payout_received or 0.0) for r in rows),
         "realized_pnl": total_pnl,
         "win_rate": (len(won) / (len(won) + len(lost))) if (won or lost) else 0.0,
+        "since_ms": since_ms,
+        "until_ms": until_ms,
     }
 
 

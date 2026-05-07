@@ -46,26 +46,48 @@ function BotDetails() {
   const refresh = useCallback(async () => {
     try {
       const now = Date.now();
-      const ranges = { "1h": 3600000, "24h": 86400000, "7d": 604800000, "30d": 2592000000 };
+      // Window length per range
+      const ranges: Record<typeof timeRange, number> = {
+        "1h": 3_600_000, "24h": 86_400_000,
+        "7d": 604_800_000, "30d": 2_592_000_000,
+      };
+      // Bucket granularity per range — chosen so charts have ~24-60 buckets
+      // (more is noise, less is uninformative). 24h-day-bucket = 1 bar = useless.
+      const granularity: Record<typeof timeRange, "minute" | "hour" | "day"> = {
+        "1h": "minute", "24h": "hour",
+        "7d": "hour", "30d": "day",
+      };
+      // Scale list-endpoint limit so 30-day windows aren't truncated to 100.
+      const listLimit: Record<typeof timeRange, number> = {
+        "1h": 100, "24h": 500, "7d": 2000, "30d": 5000,
+      };
       const since_ms = now - ranges[timeRange];
+      const lim = listLimit[timeRange];
 
       const [b, v, pos, ord, fl, a, summary, hist, an] = await Promise.all([
         api.getBot(id),
         api.listConfigs(id),
         api.listPositions(id),
-        api.listOrders(id, 100, since_ms),
-        api.listFills(id, 100, since_ms),
+        api.listOrders(id, lim, since_ms),
+        api.listFills(id, lim, since_ms),
         api.listAudit(),
-        api.contractsSummary(id).catch(() => null),
+        // Pass the window so the headline stat cards reflect the selected range,
+        // not all-time. Without this, "Last hour" showed all-time win rate.
+        api.contractsSummary(id, since_ms, now).catch(() => null),
         api.listBalanceHistory(id, since_ms),
-        api.getAnalytics(id, since_ms, now, timeRange === "1h" ? "hour" : "day").catch(() => []),
+        api.getAnalytics(id, since_ms, now, granularity[timeRange]).catch(() => []),
       ]);
       setBot(b);
       setVersions(v);
       setPositions(pos);
       setOrders(ord);
       setFills(fl);
-      setAudit(a.filter((e) => e.resource_id === id || e.resource_id.startsWith(`${id}:`)));
+      // Audit endpoint isn't time-filterable server-side; clip client-side
+      // to the window so the audit tab matches the selected range too.
+      setAudit(a.filter((e) =>
+        (e.resource_id === id || e.resource_id.startsWith(`${id}:`)) &&
+        e.at_ms >= since_ms
+      ));
       setContractsSummary(summary);
       setBalanceHistory(hist);
       setAnalytics(an);

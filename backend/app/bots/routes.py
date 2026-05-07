@@ -127,12 +127,19 @@ async def contracts(bot_id: str, limit: int = 50, since_ms: int | None = None,
 
 
 @router.get("/{bot_id}/contracts/summary")
-async def contracts_summary(bot_id: str, _: User = Depends(require("bot:read"))) -> dict:
-    """Authoritative P&L summary for Deriv binary-option bots."""
+async def contracts_summary(bot_id: str, since_ms: int | None = None,
+                             until_ms: int | None = None,
+                             _: User = Depends(require("bot:read"))) -> dict:
+    """Authoritative P&L summary for Deriv binary-option bots.
+
+    Optional `since_ms`/`until_ms` filter to a time window — used by the UI
+    time-range picker so the headline stat cards reflect the selected
+    window, not all-time.
+    """
     from app.execution import contracts as contracts_svc
     if bot_service.get(bot_id) is None:
         raise HTTPException(404, "bot not found")
-    return contracts_svc.summary(bot_id)
+    return contracts_svc.summary(bot_id, since_ms=since_ms, until_ms=until_ms)
 
 
 @router.get("/{bot_id}/balance")
