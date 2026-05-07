@@ -83,7 +83,7 @@ function ConfigEditor() {
         if (ac) {
           setCfg({ ...ac.config, bot_id: id });
         } else if (b) {
-          setCfg(DEFAULT_CONFIG(id, b.allocation));
+          setCfg(DEFAULT_CONFIG(id, b.allocation ?? 100));
         }
       } catch (e) {
         setErr(e instanceof Error ? e.message : "failed");
