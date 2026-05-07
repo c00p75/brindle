@@ -216,6 +216,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     mark_price=bar.close,
                     allocation=bot.allocation,
                     effective_balance=effective_balance,
+                    risk_per_trade_pct=cfg.risk.risk_per_trade_pct,
                 )
                 intents = strategy.on_data(ctx)
 

@@ -127,6 +127,13 @@ class TrendV1:
         if fast_n <= 0 or slow_n <= fast_n:
             return []
 
+        # Use dynamic sizing if risk_per_trade_pct is configured
+        if ctx.risk_per_trade_pct is not None and ctx.effective_balance > 0 and ctx.mark_price > 0:
+            # qty in units = (balance * pct/100) / current_price
+            qty = (ctx.effective_balance * ctx.risk_per_trade_pct / 100.0) / ctx.mark_price
+        elif qty <= 0:
+            return []
+
         closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]
         # Need slow + 1 bars to detect a cross between t-1 and t.
         if len(closes) < slow_n + 1:

@@ -176,7 +176,15 @@ class DerivV1:
         stake = float(params.get("stake", 10.0))
         cooldown_ticks = int(params.get("cooldown_ticks", 60))
 
-        if sma_period <= 0 or rsi_period <= 0 or stake <= 0:
+        if sma_period <= 0 or rsi_period <= 0:
+            return []
+
+        # Use dynamic sizing if risk_per_trade_pct is configured
+        if ctx.risk_per_trade_pct is not None and ctx.effective_balance > 0:
+            stake = (ctx.effective_balance * ctx.risk_per_trade_pct) / 100.0
+            # Guard: ensure stake is within reasonable bounds (e.g., min $0.35 for Deriv)
+            stake = max(stake, 0.35)
+        elif stake <= 0:
             return []
 
         closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]

@@ -39,6 +39,7 @@ class StrategyContext(BaseModel):
     mark_price: float
     allocation: float | None = None
     effective_balance: float = 0.0
+    risk_per_trade_pct: float | None = None
 
 
 @runtime_checkable

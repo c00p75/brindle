@@ -15,6 +15,8 @@ class RiskLimits(BaseModel):
     # might not catch quickly enough.
     max_consecutive_losses: int = Field(default=0, ge=0, le=100,
         description="Pause bot after N consecutive losing trades. 0=disabled.")
+    risk_per_trade_pct: float | None = Field(default=None, ge=0, le=100,
+        description="Dynamic sizing: risk X% of effective balance per trade.")
 
     @field_validator("max_total_exposure")
     @classmethod
