@@ -2,11 +2,11 @@ import os
 import sys
 import json
 
-# Add backend to path
-sys.path.append(os.path.join(os.getcwd(), "backend"))
+# Add current dir to path
+sys.path.append(os.getcwd())
 
 import dotenv
-dotenv.load_dotenv("backend/.env")
+dotenv.load_dotenv(".env")
 
 from app.bots import service as bot_svc
 from app.configs import service as config_svc
