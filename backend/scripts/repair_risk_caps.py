@@ -31,13 +31,11 @@ def repair():
         risk = cfg.risk
         
         # Check if they are using the "old broken defaults"
-        # max_position_notional: 5000
-        # max_total_exposure: 20000
-        # max_daily_loss: 500
+        # max_position_notional: 5000 or 1000
+        # max_daily_loss: 500 or 20
         is_default = (
-            risk.max_position_notional == 5000 and
-            risk.max_total_exposure == 20000 and
-            risk.max_daily_loss == 500
+            risk.max_position_notional in {5000.0, 1000.0} or
+            risk.max_daily_loss in {500.0, 20.0}
         )
         
         if not is_default:
