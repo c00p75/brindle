@@ -46,6 +46,8 @@ export interface RiskLimits {
   max_daily_loss: number;
   max_drawdown_pct: number;
   max_open_orders: number;
+  max_consecutive_losses: number;
+  risk_per_trade_pct: number | null;
   kill_switch: boolean;
 }
 

@@ -24,6 +24,8 @@ const DEFAULT_CONFIG = (botId: string): BotConfig => ({
     max_daily_loss: 500,
     max_drawdown_pct: 10,
     max_open_orders: 5,
+    max_consecutive_losses: 0,
+    risk_per_trade_pct: null,
     kill_switch: false,
   },
   broker: {
@@ -237,6 +239,18 @@ function ConfigEditor() {
               <input type="number" min={1} value={cfg.risk.max_open_orders}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_open_orders: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Max consecutive losses</label>
+              <input type="number" min={0} value={cfg.risk.max_consecutive_losses}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_consecutive_losses: Number(e.target.value) } })}
+                style={{ width: "100%" }} />
+            </div>
+            <div>
+              <label>Risk per trade (%)</label>
+              <input type="number" min={0} max={100} step="0.1" value={cfg.risk.risk_per_trade_pct || ""}
+                onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, risk_per_trade_pct: e.target.value ? Number(e.target.value) : null } })}
+                style={{ width: "100%" }} placeholder="Fixed qty if empty" />
             </div>
             <div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 18 }}>
