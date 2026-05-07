@@ -12,13 +12,8 @@ interface ChatSession {
   updated_at_ms: number;
 }
 
-interface Message {
-  role: "user" | "assistant";
-  content: string;
-  actions?: string[];
-  entities?: any[];
-  steps?: string[];
   suggested_replies?: string[];
+  isError?: boolean;
 }
 
 interface ChatResponse {
@@ -294,12 +289,10 @@ export default function ChatBot() {
           suggested_replies: data.suggested_replies
         },
       ]);
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
         {
           role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : "Something went wrong"}`,
+          content: `${err instanceof Error ? err.message : "Something went wrong"}`,
+          isError: true,
         },
       ]);
     } finally {
@@ -540,11 +533,37 @@ export default function ChatBot() {
                     </div>
                   )}
                   {msg.actions && msg.actions.length > 0 && (
-                    <div style={{ maxWidth: "85%", marginTop: 4 }}>
-                      {msg.actions.map((a, j) => (
-                        <ActionPill key={j} action={a} />
-                      ))}
                     </div>
+                  )}
+                  {msg.isError && (
+                    <button
+                      onClick={() => {
+                        // Find the last user message
+                        const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+                        if (lastUserMsg) {
+                          setInput(lastUserMsg.content);
+                          // Tiny delay to ensure state update before sending
+                          setTimeout(handleSend, 0);
+                        }
+                      }}
+                      style={{
+                        marginTop: 8,
+                        padding: "6px 12px",
+                        background: "#fee2e2",
+                        border: "1px solid #fecaca",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        color: "#991b1b",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontWeight: 500
+                      }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+                      Retry
+                    </button>
                   )}
                   {msg.suggested_replies && msg.suggested_replies.length > 0 && (
                     <div style={{ alignSelf: "center", width: "100%", display: "flex", justifyContent: "center" }}>
