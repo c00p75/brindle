@@ -20,6 +20,7 @@ export default function NewBotPage() {
 function NewBot() {
   const router = useRouter();
   const [name, setName] = useState("");
+  const [allocation, setAllocation] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -28,7 +29,8 @@ function NewBot() {
     setBusy(true);
     setErr(null);
     try {
-      const bot = await api.createBot(name.trim());
+      const amt = allocation ? parseFloat(allocation) : undefined;
+      const bot = await api.createBot(name.trim(), amt);
       router.push(`/bots/${bot.id}/config`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "failed");
@@ -49,8 +51,23 @@ function NewBot() {
         onChange={(e) => setName(e.target.value)}
         required
         maxLength={80}
-        style={{ width: "100%" }}
+        style={{ width: "100%", marginBottom: 16 }}
         placeholder="e.g. fx-trend-eur-usd"
+      />
+
+      <label>Initial Capital Allocation ($)</label>
+      <p style={{ fontSize: 12, color: "#64748b", marginTop: -8, marginBottom: 8 }}>
+        Optional. If set, this bot will treat this amount as its total "account size" for risk calculations. 
+        Leave empty to use the full broker balance.
+      </p>
+      <input
+        type="number"
+        value={allocation}
+        onChange={(e) => setAllocation(e.target.value)}
+        step="0.01"
+        min="0"
+        style={{ width: "100%" }}
+        placeholder="e.g. 100.00"
       />
       {err && <p className="error">{err}</p>}
       <div style={{ marginTop: 16, display: "flex", gap: 8 }}>

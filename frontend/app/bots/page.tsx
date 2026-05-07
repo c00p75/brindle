@@ -169,6 +169,7 @@ function BotsList() {
               <tr>
                 <th>Bot</th>
                 <th>State</th>
+                <th>Allocation</th>
                 <th>Active config</th>
                 <th>P&L</th>
                 <th>Win/loss</th>
@@ -196,6 +197,12 @@ function BotsList() {
                     </div>
                   </td>
                   <td><span className={`pill ${b.state}`}>{b.state}</span></td>
+                  <td>
+                    {b.allocation 
+                      ? <span style={{ fontWeight: 600, color: "#4f46e5" }}>${b.allocation.toFixed(2)}</span>
+                      : <span style={{ color: "#94a3b8", fontSize: 12 }}>Full account</span>
+                    }
+                  </td>
                   <td>
                     {b.active_config_version
                       ? <span style={{ background: "#f2f3f4", color: "#555", padding: "3px 8px", borderRadius: 3, fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}>

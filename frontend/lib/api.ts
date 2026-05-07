@@ -96,8 +96,11 @@ export const api = {
   getBot(id: string): Promise<Bot> {
     return request(`/api/bots/${id}`);
   },
-  createBot(name: string): Promise<Bot> {
-    return request("/api/bots", { method: "POST", body: JSON.stringify({ name }) });
+  createBot(name: string, allocation?: number): Promise<Bot> {
+    return request("/api/bots", { 
+      method: "POST", 
+      body: JSON.stringify({ name, allocation }) 
+    });
   },
   startBot(id: string): Promise<Bot> {
     return request(`/api/bots/${id}/start`, { method: "POST" });
