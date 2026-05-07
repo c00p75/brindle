@@ -27,6 +27,7 @@ function BotsList() {
   const user = getUser();
 
   const [filter, setFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"name" | "pnl" | "winrate" | "updated">("updated");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
@@ -79,7 +80,9 @@ function BotsList() {
   const filteredAndSortedBots = bots
     .filter((b) => {
       const search = filter.toLowerCase();
-      return b.name.toLowerCase().includes(search) || b.id.toLowerCase().includes(search);
+      const matchesSearch = b.name.toLowerCase().includes(search) || b.id.toLowerCase().includes(search);
+      const matchesStatus = statusFilter === "all" || b.state === statusFilter;
+      return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -192,20 +195,25 @@ function BotsList() {
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafafa" }}>
-            <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
-              <input
-                type="text"
-                placeholder="Search bots..."
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                style={{ width: "100%", paddingLeft: 32, fontSize: 13 }}
-              />
-              <svg width="14" height="14" style={{ position: "absolute", left: 10, top: 10, opacity: 0.4 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between", alignItems: "center", background: "#fafafa" }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              {["all", "running", "paused", "stopped", "draft"].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(s)}
+                  style={{
+                    padding: "4px 12px", borderRadius: 16, fontSize: 12, cursor: "pointer",
+                    background: statusFilter === s ? "#4f46e5" : "#fff",
+                    color: statusFilter === s ? "#fff" : "#64748b",
+                    border: statusFilter === s ? "1px solid #4f46e5" : "1px solid #e2e8f0",
+                    fontWeight: 600, transition: "all 0.2s"
+                  }}
+                >
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flex: 1, justifyContent: "flex-end", minWidth: 300 }}>
               <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>Sort by:</span>
               <select 
                 value={sortBy} 
