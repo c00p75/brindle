@@ -370,3 +370,14 @@ async def execute_tool(name: str, args: dict, user) -> dict:
         return {"error": str(e)}
     except Exception as e:
         return {"error": f"Tool execution failed: {e}"}
+
+
+WRITE_TOOLS = {
+    "start_bot",
+    "stop_bot",
+    "pause_bot",
+    "create_bot",
+    "archive_bot",
+    "update_bot_config",
+    "acknowledge_alert",
+}

@@ -10,6 +10,11 @@ class RiskLimits(BaseModel):
     max_drawdown_pct: float = Field(gt=0, le=100, description="max drawdown percent")
     max_open_orders: int = Field(gt=0, le=1000)
     kill_switch: bool = False
+    # Pause the bot if the last N settled trades are all losses. 0 disables.
+    # Catches "running into a wall" failure modes that the daily-loss limit
+    # might not catch quickly enough.
+    max_consecutive_losses: int = Field(default=0, ge=0, le=100,
+        description="Pause bot after N consecutive losing trades. 0=disabled.")
 
     @field_validator("max_total_exposure")
     @classmethod

@@ -75,9 +75,29 @@ function BotsList() {
             {bots.length} configured · {running} running
           </p>
         </div>
-        {can(user?.role, "bot:create") && (
-          <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>+ New bot</Link>
-        )}
+        <div style={{ display: "flex", gap: 8 }}>
+          {can(user?.role, "bot:stop") && running > 0 && (
+            <button
+              type="button"
+              className="btn danger"
+              onClick={async () => {
+                if (!confirm(`Emergency stop all ${running} running bots?`)) return;
+                try {
+                  const r = await api.stopAllBots();
+                  alert(`Stopped ${r.count} bot${r.count === 1 ? "" : "s"}.` +
+                        (r.failed.length ? `\n${r.failed.length} failed.` : ""));
+                  await refresh();
+                } catch (e) { alert(e instanceof Error ? e.message : "failed"); }
+              }}
+              style={{ textDecoration: "none" }}
+            >
+              ⛔ Stop all ({running})
+            </button>
+          )}
+          {can(user?.role, "bot:create") && (
+            <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>+ New bot</Link>
+          )}
+        </div>
       </div>
 
       {err && <p className="error" style={{ marginBottom: 16 }}>{err}</p>}

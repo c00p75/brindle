@@ -111,6 +111,9 @@ export const api = {
   archiveBot(id: string): Promise<Bot> {
     return request(`/api/bots/${id}/archive`, { method: "POST" });
   },
+  stopAllBots(): Promise<{ stopped: string[]; failed: { id: string; error: string }[]; count: number }> {
+    return request(`/api/bots/stop-all`, { method: "POST" });
+  },
   listConfigs(botId: string): Promise<ConfigVersion[]> {
     return request(`/api/bots/${botId}/configs`);
   },

@@ -93,6 +93,30 @@ async def archive_bot(bot_id: str, user: User = Depends(require("bot:archive")))
     return bot
 
 
+@router.post("/stop-all")
+async def stop_all(user: User = Depends(require("bot:stop"))) -> dict:
+    """Emergency stop — halt every running bot in one call.
+
+    Iterates running bots (by state, not just by runtime registry — covers the
+    edge case where state is RUNNING but the runtime task has already exited).
+    Records each individual stop in the audit log.
+    """
+    from app.bots.models import BotState
+    mgr = get_runtime_manager()
+    stopped: list[str] = []
+    failed: list[dict] = []
+    for b in bot_service.list_bots():
+        if b.state != BotState.RUNNING:
+            continue
+        try:
+            bot_service.stop(b.id, actor_email=user.email, actor_role=user.role.value)
+            await mgr.stop(b.id)
+            stopped.append(b.id)
+        except Exception as e:  # noqa: BLE001
+            failed.append({"id": b.id, "error": str(e)[:200]})
+    return {"stopped": stopped, "failed": failed, "count": len(stopped)}
+
+
 @router.get("/{bot_id}/positions")
 async def positions(bot_id: str, _: User = Depends(require("bot:read"))) -> list[dict]:
     if bot_service.get(bot_id) is None:

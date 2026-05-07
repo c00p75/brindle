@@ -164,8 +164,13 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             # Every CONTRACT_POLL_INTERVAL ticks, sweep open contracts for settlement.
             if tick_count % CONTRACT_POLL_INTERVAL == 0:
                 await _poll_contracts(bot.id, adapter)
-                # Drawdown auto-stop check uses authoritative contract P&L.
+                # Drawdown auto-stop — uses real broker balance (balance_history)
                 if await _drawdown_breached(bot, cfg):
+                    return
+                # Loss-streak circuit breaker — auto-pause if last N settled
+                # contracts are all losses. Catches "running into a wall"
+                # patterns the daily-loss limit may be too coarse to catch.
+                if _loss_streak_breached(bot, cfg):
                     return
             # Every BALANCE_POLL_INTERVAL ticks, refresh broker balance for the UI.
             if tick_count % BALANCE_POLL_INTERVAL == 0:
@@ -326,24 +331,97 @@ async def _poll_contracts(bot_id: str, adapter) -> None:
                  bot_id, cid, normalized, status.get("payout", 0.0), status.get("profit", 0.0))
 
 
-async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
-    """Auto-pause if realized losses exceed daily_loss or max_drawdown_pct.
+def _loss_streak_breached(bot: Bot, cfg: BotConfig) -> bool:
+    """Auto-pause if the most recent N settled trades are all losses.
 
-    Returns True if the bot should stop. Authoritative source is the contract
-    table for Deriv bots (real settled P&L), positions.realized_pnl otherwise.
+    Returns True if the bot was paused. Streak threshold is taken from
+    `risk.max_consecutive_losses`; 0 disables the check.
     """
+    limit = int(getattr(cfg.risk, "max_consecutive_losses", 0) or 0)
+    if limit <= 0:
+        return False
+
     from app.execution import contracts as contracts_svc
 
-    # Daily loss check — sum of negative realized PnL today
-    summary = contracts_svc.summary(bot.id)
-    realized = summary["realized_pnl"]
-    daily_loss = -realized if realized < 0 else 0.0
+    # Fetch enough recent contracts to evaluate the streak (settled only).
+    recent = contracts_svc.list_recent(bot.id, limit=limit + 5)
+    settled = [c for c in recent if c.get("status") in ("won", "lost")]
+    if len(settled) < limit:
+        return False  # not enough data yet
+
+    # contracts.list_recent is ordered most-recent first
+    last_n = settled[:limit]
+    if not all(c["status"] == "lost" for c in last_n):
+        return False
+
+    emit_alert(
+        severity=Severity.CRITICAL,
+        source="runtime",
+        message=f"auto-pausing bot — {limit} consecutive losing trades",
+        bot_id=bot.id,
+    )
+    log.warning("loss-streak auto-stop bot=%s n=%d", bot.id, limit)
+    from app.bots import service as bot_service
+    try:
+        bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
+async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
+    """Auto-pause if real broker balance has lost too much.
+
+    Source of truth is the persisted balance_snapshots series (real broker
+    balance), NOT the contract tracker — they diverge in practice. We
+    enforce two independent limits:
+
+      max_daily_loss   — current balance vs balance ~24h ago
+      max_drawdown_pct — current balance vs all-time peak observed
+
+    Both limits are skipped silently if there isn't enough balance history
+    yet (e.g. brand-new bot with one snapshot).
+    """
+    from app.bots import service as bot_service
+    from app.execution import balance_history
+    from app.core.time import now_epoch_ms
 
     breached = False
     reason = ""
+
+    # Find current balance — use the most-recent snapshot
+    latest = balance_history.latest(bot.id)
+    if latest is None:
+        return False
+    current = float(latest["balance"])
+
+    # 1) Daily-loss check: compare current balance to a "starting" balance.
+    #    Prefer the bot's persistent baseline (set on first balance read);
+    #    fall back to the oldest snapshot in the last 24h window.
+    start_amt, _, _ = bot_service.get_starting_balance(bot.id)
+    if start_amt is None:
+        # Use the earliest snapshot in the last 24h as a proxy baseline
+        day_ago = now_epoch_ms() - 24 * 3_600_000
+        recent = balance_history.history(bot_id=bot.id, since_ms=day_ago, max_points=2000)
+        start_amt = float(recent[0]["balance"]) if recent else current
+
+    daily_loss = max(0.0, start_amt - current)
     if cfg.risk.max_daily_loss > 0 and daily_loss >= cfg.risk.max_daily_loss:
         breached = True
         reason = f"daily loss ${daily_loss:.2f} >= limit ${cfg.risk.max_daily_loss:.2f}"
+
+    # 2) Drawdown-from-peak check: max_drawdown_pct is enforced here, not just
+    #    in the schema. Peak is the highest balance observed for this bot.
+    if not breached and cfg.risk.max_drawdown_pct > 0:
+        all_history = balance_history.history(bot_id=bot.id, max_points=10_000)
+        if all_history:
+            peak = max(float(h["balance"]) for h in all_history)
+            if peak > 0:
+                dd_pct = (peak - current) / peak * 100.0
+                if dd_pct >= cfg.risk.max_drawdown_pct:
+                    breached = True
+                    reason = (f"drawdown {dd_pct:.2f}% from peak ${peak:.2f} to ${current:.2f} "
+                              f">= limit {cfg.risk.max_drawdown_pct:.2f}%")
 
     if breached:
         emit_alert(
@@ -353,7 +431,6 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
             bot_id=bot.id,
         )
         log.warning("drawdown auto-stop bot=%s: %s", bot.id, reason)
-        from app.bots import service as bot_service
         try:
             bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
         except Exception:  # noqa: BLE001

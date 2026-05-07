@@ -23,3 +23,5 @@ frontend/tsconfig.tsbuildinfo
 .idea/
 .vscode/
 *.swp
+.vercel
+.env*.local
