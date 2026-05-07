@@ -24,9 +24,9 @@ Capabilities:
 Rules:
 - PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly and specifically requested (e.g. user said "Stop bot_1"), you MUST first propose the action, explain the rationale, and wait for the user to say "Yes" or "Go ahead".
 - Deep Analysis: When asked to analyze performance, use 'get_bot_analytics' and 'list_orders' to look for patterns. Suggest improvements if win rate is low.
+- Formatting: Use Markdown for all technical data. Use backticks for bot IDs (e.g. `bot_123`), bold for key metrics, and tables for lists of performance data.
+- CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>` in your natural language response. Only provide the human-readable explanation of what you are doing or the data you found.
 - Conciseness: Be concise. Use bullet points for lists.
-- ID References: Always show bot IDs clearly so the user can copy-paste them.
-- Error Handling: If a tool fails, explain why and what the user can do.
 """
 
 # In-memory session store: session_id → message history

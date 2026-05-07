@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { getToken } from "../lib/api";
 
 interface Message {
@@ -168,7 +170,28 @@ export default function ChatBot() {
           from { opacity: 0; transform: translateY(16px) scale(0.97); }
           to   { opacity: 1; transform: translateY(0) scale(1); }
         }
-        .chat-msg { line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+        .chat-msg { line-height: 1.55; word-break: break-word; }
+        .chat-msg p { margin: 0 0 8px 0; }
+        .chat-msg p:last-child { margin-bottom: 0; }
+        .chat-msg ul, .chat-msg ol { margin: 8px 0; padding-left: 20px; }
+        .chat-msg li { margin-bottom: 4px; }
+        .chat-msg code { 
+          font-family: 'JetBrains Mono', monospace; 
+          font-size: 0.9em; 
+          background: rgba(0,0,0,0.06); 
+          padding: 2px 4px; 
+          border-radius: 4px; 
+        }
+        .chat-msg-user code { background: rgba(255,255,255,0.2); }
+        .chat-msg pre { 
+          background: #1e293b; 
+          color: #f8fafc; 
+          padding: 12px; 
+          border-radius: 8px; 
+          overflow-x: auto; 
+          margin: 8px 0;
+        }
+        .chat-msg pre code { background: transparent; padding: 0; color: inherit; font-size: 12px; }
       `}</style>
 
       {/* Floating toggle button */}
@@ -304,13 +327,21 @@ export default function ChatBot() {
                     background: msg.role === "user" ? "#6366f1" : "#fff",
                     color: msg.role === "user" ? "#fff" : "#1e293b",
                     fontSize: 13.5,
+                    border: msg.role === "assistant" ? "1px solid #e2e8f0" : "none",
                     boxShadow:
                       msg.role === "user"
                         ? "0 2px 8px rgba(99,102,241,0.3)"
                         : "0 1px 4px rgba(0,0,0,0.08)",
                   }}
                 >
-                  {msg.content}
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({node, ...props}) => <a {...props} style={{ color: msg.role === "user" ? "#fff" : "#6366f1", textDecoration: "underline" }} target="_blank" rel="noopener noreferrer" />
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
                 </div>
                 {msg.actions && msg.actions.length > 0 && (
                   <div style={{ maxWidth: "85%", marginTop: 4 }}>
