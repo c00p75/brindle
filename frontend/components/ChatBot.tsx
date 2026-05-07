@@ -15,17 +15,13 @@ interface ChatResponse {
   actions: string[];
 }
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"
-    : "http://localhost:8000";
 
 async function sendMessage(
   message: string,
   sessionId: string | null
 ): Promise<ChatResponse> {
   const token = getToken();
-  const res = await fetch(`${API_BASE}/api/chat`, {
+  const res = await fetch("/api/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -53,6 +49,9 @@ const ACTION_LABEL: Record<string, string> = {
   list_orders: "Fetched orders",
   create_bot: "Created bot",
   run_backtest: "Ran backtest",
+  archive_bot: "Archived bot",
+  update_bot_config: "Updated config",
+  get_bot_analytics: "Analyzed metrics",
 };
 
 function ActionPill({ action }: { action: string }) {

@@ -166,6 +166,55 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "update_bot_config",
+            "description": "Create and apply a new configuration draft for a bot. Use this to change parameters like stake, strategy, or risk settings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bot_id": {"type": "string", "description": "Bot ID to update"},
+                    "config": {
+                        "type": "object",
+                        "description": "Full BotConfig object with updated values. Always get current config first.",
+                    },
+                },
+                "required": ["bot_id", "config"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_bot_analytics",
+            "description": "Get bucketed performance analytics (hourly/daily) for a bot to analyze trends, win rates, and PnL over time.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bot_id": {"type": "string", "description": "Bot ID to analyze"},
+                    "since_ms": {"type": "integer", "description": "Start timestamp in ms"},
+                    "until_ms": {"type": "integer", "description": "End timestamp in ms"},
+                    "granularity": {"type": "string", "enum": ["hour", "day"], "default": "hour"},
+                },
+                "required": ["bot_id", "since_ms", "until_ms"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "archive_bot",
+            "description": "Archive a bot that is no longer needed (destructive action).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bot_id": {"type": "string", "description": "Bot ID to archive"},
+                },
+                "required": ["bot_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "run_backtest",
             "description": (
                 "Run a backtest simulation for a strategy. "
@@ -261,6 +310,48 @@ async def execute_tool(name: str, args: dict, user) -> dict:
                 actor_role=user.role.value,
             )
             return {"status": "created", "bot": bot.model_dump()}
+
+        elif name == "archive_bot":
+            bot_id = args["bot_id"]
+            bot = bot_service.archive(bot_id, actor_email=user.email, actor_role=user.role.value)
+            return {"status": "archived", "bot": bot.model_dump()}
+
+        elif name == "update_bot_config":
+            from app.configs import service as config_service
+            from app.bots.models import BotConfig
+            bot_id = args["bot_id"]
+            new_config = BotConfig.model_validate(args["config"])
+            # Lifecycle: draft -> validate -> apply
+            draft = config_service.create_draft(
+                actor_email=user.email,
+                actor_role=user.role.value,
+                config=new_config
+            )
+            config_service.validate(
+                actor_email=user.email,
+                actor_role=user.role.value,
+                bot_id=bot_id,
+                version=draft.version
+            )
+            # AI is trusted to apply immediately if the user asked for it
+            applied = config_service.apply(
+                actor_email=user.email,
+                actor_role=user.role.value,
+                bot_id=bot_id,
+                version=draft.version,
+                typed_confirmation="APPLY RISK CHANGE"
+            )
+            return {"status": "applied", "version": applied.version, "config": applied.config.model_dump()}
+
+        elif name == "get_bot_analytics":
+            from app.execution import balance_history
+            data = balance_history.analytics(
+                bot_id=args["bot_id"],
+                since_ms=args["since_ms"],
+                until_ms=args["until_ms"],
+                granularity=args.get("granularity", "hour")
+            )
+            return {"buckets": data}
 
         elif name == "run_backtest":
             manifest = BacktestManifest(
