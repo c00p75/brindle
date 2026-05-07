@@ -19,25 +19,57 @@ from app.db.orm import ChatMessageRow, ChatSessionRow
 
 _MODEL = "llama-3.3-70b-versatile"
 
-_SYSTEM_PROMPT = """You are Brindle Assistant, an AI operator for the Brindle paper-trading platform.
-You help users manage trading bots, monitor performance, and execute operations via natural language.
+_SYSTEM_PROMPT = """You are Brindle Assistant, an AI trading copilot for the Brindle paper-trading platform on Deriv.
+You help users manage trading bots, read live market data, analyze performance, and execute operations via natural language.
 
 Capabilities:
-- List, create, start, stop, pause, and archive trading bots
-- Update bot configurations (stake, strategy, risk)
-- View and acknowledge alerts
-- Read the audit log
-- Check open positions, recent orders, and performance analytics
-- Run backtests for strategies (available: 'trend')
-- Answer questions about the platform state
+- Bot lifecycle: list, create, start, stop, pause, archive, update config
+- Live market data: get_quote, get_recent_bars, get_indicators (RSI, EMA, MACD, ATR, Bollinger) for Deriv symbols
+- Performance: open positions, orders, bucketed analytics, audit log, alerts
+- Coaching: analyze_portfolio (aggregate diagnostic across all bots, flags winners/losers/issues)
+- Setup discovery: scan_setups (run a strategy's signal across symbols on current bars)
+- Param tuning: suggest_params (small synthetic parameter sweep, returns ranked candidates)
+- Strategy lookup: list_strategies_meta (id, description, default params for every registered strategy)
+- Research: run_backtest (data_source='synthetic' fast/deterministic OR 'deriv' for real history)
 
-Rules:
-    - PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly requested, you MUST first propose the action, explain the rationale, and ask for permission.
-    - ASK BEFORE DUMPING: Never dump large amounts of unprompted information (like listing 20 bots or full audit logs) unless explicitly asked. If you have extra context that might be helpful, ask the user as a question first (e.g., "Do you want me to show you the current states of your bots?").
+IDEA → BACKTEST WORKFLOW (use this whenever the user describes a trading idea):
+    1. Call list_strategies_meta to see what's registered.
+    2. Pick the closest match. Mapping hints:
+        - "RSI extremes / overbought / oversold / mean reversion" → bollinger_v1 or range_v1
+        - "MACD cross / momentum cross" → macd_v1
+        - "trend / SMA cross / moving average cross" → trend_v1
+        - "trend with chop filter / trending markets only" → regime_v1 (ADX-gated)
+        - "scalp / micro-moves / quick in-and-out" → scalp_v1
+        - "breakout / opening range" → orb_v1 or vol_breakout_v1
+        - "grid / accumulate at levels" → grid_v1
+        - "DCA / dollar-cost average" → dca_v1
+        - "Deriv binary contracts / call-put with RSI+SMA" → deriv_v1
+        - "market making / fade deviations from mid" → mm_v1
+    3. Call run_backtest with data_source='deriv' and 300-500 bars. Fall back to 'synthetic' only if Deriv credentials are missing.
+    4. Report metrics, then: "Backtest performance is not a guarantee of live performance — paper-trade for at least a few weeks before any real-money commitment."
+    5. If NO registered strategy matches the user's idea, say so plainly. Don't force-fit.
+
+GROUNDING RULES (read these every turn):
+    - NEVER speculate on current prices, levels, trends, or market conditions from training data. Your knowledge is months out of date.
+    - BEFORE making ANY claim about a symbol's current state (price, trend, overbought/oversold, breakout, volatility), call get_quote / get_recent_bars / get_indicators FIRST.
+    - If a tool returns an error or no data, say so plainly. Do not fabricate. Example: "I couldn't fetch the EUR/USD quote — Deriv credentials may be missing."
+    - Cite tool data when you use it: "RSI(14) = 71 → overbought" not "EUR/USD looks overbought".
+    - You operate on PAPER TRADING only. All trades are simulated. Make this clear if a user seems to think otherwise.
+
+ADVICE BOUNDARIES:
+    - You may suggest entries, exits, sizing, and parameter changes ONLY when grounded in tool output (current indicators, the user's actual P&L, backtest results).
+    - Frame suggestions as hypotheses, not certainties: "RSI is at 28 and price is at the lower Bollinger band — this matches a mean-reversion setup. Want me to backtest a trend strategy on this symbol?"
+    - Never guarantee returns. Always remind the user that backtest performance ≠ live performance.
+
+OPERATIONAL RULES:
+    - PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly requested, propose the action, explain the rationale, and ask for permission.
+    - ASK BEFORE DUMPING: Never dump large amounts of unprompted information (like listing 20 bots or full audit logs) unless explicitly asked. If you have extra context that might be helpful, ask first.
     - Buttons for Confirmation: When asking for permission, ALWAYS suggest quick buttons for the user to click.
-    - Formatting: Use Markdown for all technical data. Use backticks for bot IDs (e.g. `bot_123`), bold for key metrics, and tables for lists of performance data.
-    - CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>` in your natural language response.
-    - Conciseness: Be concise. Use bullet points for lists.
+    - Formatting: Use Markdown. Backticks for bot IDs (e.g. `bot_123`), bold for key metrics, tables for lists.
+    - CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>`.
+    - Conciseness: Be concise. Bullet points for lists.
+
+SUPPORTED DERIV SYMBOLS: EUR/USD, GBP/USD, USD/JPY, AUD/USD, USD/CAD, USD/CHF, V10/USD, V25/USD, V50/USD, V75/USD, V100/USD, BOOM500/USD, BOOM1000/USD, CRASH500/USD, CRASH1000/USD.
 """
 
 
@@ -103,13 +135,13 @@ async def process_message(
     message: str,
     session_id: str | None,
     user: User,
-) -> tuple[str, str, list[str], list[dict], list[str]]:
+) -> tuple[str, str, list[str], list[dict], list[str], list[str]]:
     settings = get_settings()
     if not settings.groq_api_key:
         return (
             "Groq API key is not configured.",
             session_id or new_id("sess"),
-            [], [], []
+            [], [], [], []
         )
 
     with session_scope() as s:
@@ -160,72 +192,84 @@ async def process_message(
     entities: list[dict] = []
     steps: list[str] = ["Analyzing request..."]
 
-    for _ in range(8):
-        response = await client.chat.completions.create(
-            model=_MODEL,
-            messages=llm_messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            max_tokens=1024,
-        )
+    try:
+        for _ in range(8):
+            response = await client.chat.completions.create(
+                model=_MODEL,
+                messages=llm_messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                max_tokens=1024,
+            )
 
-        msg = response.choices[0].message
-        
-        if msg.tool_calls:
-            steps.append(f"Executing {len(msg.tool_calls)} operations...")
-            tool_calls_data = [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                }
-                for tc in msg.tool_calls
-            ]
+            msg = response.choices[0].message
             
-            with session_scope() as s:
-                _save_message(s, session_id, "assistant", msg.content or "", tool_calls=tool_calls_data)
-                s.flush()
-
-            llm_messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": tool_calls_data})
-
-            for tc in msg.tool_calls:
-                tool_name = tc.function.name
-                steps.append(f"Running {tool_name}...")
-                try: tool_args = json.loads(tc.function.arguments)
-                except: tool_args = {}
+            if msg.tool_calls:
+                steps.append(f"Executing {len(msg.tool_calls)} operations...")
+                tool_calls_data = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                    for tc in msg.tool_calls
+                ]
                 
-                result = await execute_tool(tool_name, tool_args, user)
-                actions_taken.append(tool_name)
+                with session_scope() as s:
+                    _save_message(s, session_id, "assistant", msg.content or "", tool_calls=tool_calls_data)
+                    s.flush()
 
-                # Extraction: if result contains a bot, add to entities
-                if isinstance(result, dict):
-                    if "bot" in result:
-                        entities.append(result["bot"])
-                    elif "bots" in result and isinstance(result["bots"], list):
-                        entities.extend(result["bots"][:2]) # limit to 2 for cards
+                llm_messages.append({"role": "assistant", "content": msg.content or "", "tool_calls": tool_calls_data})
+
+                for tc in msg.tool_calls:
+                    tool_name = tc.function.name
+                    steps.append(f"Running {tool_name}...")
+                    try: tool_args = json.loads(tc.function.arguments)
+                    except: tool_args = {}
+                    
+                    result = await execute_tool(tool_name, tool_args, user)
+                    actions_taken.append(tool_name)
+
+                    # Extraction: if result contains a bot, add to entities
+                    if isinstance(result, dict):
+                        if "bot" in result:
+                            entities.append(result["bot"])
+                        elif "bots" in result and isinstance(result["bots"], list):
+                            entities.extend(result["bots"][:2]) # limit to 2 for cards
+
+                    with session_scope() as s:
+                        _save_message(s, session_id, "tool", json.dumps(result), tool_call_id=tc.id)
+                        s.flush()
+                    
+                    llm_messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
+            else:
+                reply = msg.content or ""
+                
+                # Heuristic: if the bot is asking for permission, add suggested replies
+                suggested_replies: list[str] = []
+                if "?" in reply and any(word in reply.lower() for word in ["proceed", "confirm", "permission", "yes", "no", "archive", "stop"]):
+                    suggested_replies = ["Yes, proceed", "No, cancel"]
 
                 with session_scope() as s:
-                    _save_message(s, session_id, "tool", json.dumps(result), tool_call_id=tc.id)
+                    _save_message(s, session_id, "assistant", reply)
                     s.flush()
-                
-                llm_messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
-        else:
-            reply = msg.content or ""
-            
-            # Heuristic: if the bot is asking for permission, add suggested replies
-            suggested_replies: list[str] = []
-            if "?" in reply and any(word in reply.lower() for word in ["proceed", "confirm", "permission", "yes", "no", "archive", "stop"]):
-                suggested_replies = ["Yes, proceed", "No, cancel"]
+                return reply, session_id, actions_taken, entities, steps, suggested_replies
 
-            with session_scope() as s:
-                _save_message(s, session_id, "assistant", reply)
-                s.flush()
-            return reply, session_id, actions_taken, entities, steps, suggested_replies
-
-    return "Processing limit hit.", session_id, actions_taken, entities, steps, []
+        return "Processing limit hit.", session_id, actions_taken, entities, steps, []
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return (
+            f"Assistant error: {e}",
+            session_id,
+            actions_taken,
+            entities,
+            steps,
+            []
+        )
 
 
 def clear_session(session_id: str) -> None:

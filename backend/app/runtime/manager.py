@@ -179,6 +179,14 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             if tick_count % BALANCE_POLL_INTERVAL == 0:
                 await _poll_balance(bot.id, adapter)
 
+            # Fetch broker state once per tick for all symbols to use in reconciliation
+            # and risk checks. Catches "orphaned" trades if the backend crashed.
+            broker_positions = []
+            try:
+                broker_positions = await adapter.get_positions()
+            except Exception as e:
+                log.warning("failed to fetch broker positions for sync bot=%s: %s", bot.id, e)
+
             for symbol in cfg.symbols:
                 # Staleness guard — NOOP and alert on first detection
                 if source.is_stale(symbol):
@@ -208,6 +216,19 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     balance = get_runtime_manager().get_cached_balance(bot.id)
                     effective_balance = balance["available"] if balance else 0.0
 
+                from app.execution import contracts as contracts_svc
+                # Reconcile DB with Broker state:
+                # 1. Start with what we have in the DB
+                db_open_ids = contracts_svc.list_open_ids(bot.id)
+                # 2. Check the Broker for any open position on this symbol.
+                #    If the broker has a position but we don't have it in the DB,
+                #    it's likely an orphaned trade from a crash.
+                broker_open_count = sum(1 for p in broker_positions if p.symbol == symbol)
+                effective_open_count = max(len(db_open_ids), broker_open_count)
+
+                recent = contracts_svc.list_recent(bot.id, limit=1)
+                last_trade_at = recent[0]["purchased_at_ms"] if recent else None
+
                 ctx = StrategyContext(
                     bot_id=bot.id,
                     strategy_id=strategy.id,
@@ -220,6 +241,8 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     allocation=bot.allocation,
                     effective_balance=effective_balance,
                     risk_per_trade_pct=cfg.risk.risk_per_trade_pct,
+                    open_contract_count=effective_open_count,
+                    last_trade_at_ms=last_trade_at,
                 )
                 intents = strategy.on_data(ctx)
 
@@ -230,7 +253,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 if not intents:
                     continue
 
-                portfolio = PortfolioSnapshot()
+                portfolio = await _build_portfolio_snapshot(bot, adapter, broker_positions, cfg.symbols)
                 for intent in intents:
                     result = await exec_svc.execute(intent, portfolio, bar.close)
                     if result.status.value == "rejected" and (result.reason or "").startswith("risk:"):
@@ -502,3 +525,54 @@ def _publish_tick(bot_id: str, strategy: object, ctx: StrategyContext, bar: obje
         })
     except Exception:  # noqa: BLE001
         pass
+
+
+async def _build_portfolio_snapshot(
+    bot: Bot, adapter, broker_positions: list[Position], symbols: list[str]
+) -> PortfolioSnapshot:
+    """Aggregate live portfolio state for risk-engine validation."""
+    from app.execution import contracts as contracts_svc
+    from app.execution import persistence as exec_persistence
+    from app.execution import balance_history
+
+    # 1. Day PnL and Equity
+    equity = 0.0
+    day_pnl = 0.0
+    if bot.allocation:
+        summ = contracts_svc.summary(bot.id)
+        equity = bot.allocation + summ["realized_pnl"]
+        day_pnl = summ["realized_pnl"]
+    else:
+        balance = get_runtime_manager().get_cached_balance(bot.id)
+        if balance:
+            equity = balance["available"]
+            day_pnl = 0.0
+
+    # 2. Exposure & Orders
+    # Gross exposure across all symbols (for non-option bots, from DB)
+    positions = exec_persistence.list_positions(bot.id)
+    gross_exposure = sum(
+        abs(p["quantity"]) * p["avg_price"] for p in positions if p["avg_price"]
+    )
+
+    # Add broker-live exposure (Deriv contracts) for the bot's symbols.
+    # This ensures that even orphaned trades from crashes are counted in risk checks.
+    bot_symbols = set(symbols)
+    for p in broker_positions:
+        if p.symbol in bot_symbols:
+            # For Deriv, Position.quantity is the USD stake (notional)
+            gross_exposure += abs(p.quantity)
+
+    # 3. High Water Mark
+    hwm = 0.0
+    history = balance_history.history(bot_id=bot.id, max_points=1000)
+    if history:
+        hwm = max(float(h["balance"]) for h in history)
+
+    return PortfolioSnapshot(
+        gross_exposure=gross_exposure,
+        open_orders=0,
+        day_pnl=day_pnl,
+        high_water_mark=hwm,
+        equity=equity,
+    )

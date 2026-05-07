@@ -200,7 +200,18 @@ class DerivV1:
         if sma_val is None or rsi_val is None:
             return []
 
-        # Track cooldown
+        if ctx.open_contract_count > 0:
+            return []  # already in a trade
+
+        # Persistent cooldown check (survives restarts)
+        if ctx.last_trade_at_ms:
+            from app.core.time import now_epoch_ms
+            # Convert cooldown_ticks to milliseconds (assuming 1 tick = 1 second)
+            cooldown_ms = cooldown_ticks * 1000
+            if now_epoch_ms() - ctx.last_trade_at_ms < cooldown_ms:
+                return []
+
+        # Track cooldown (in-memory fallback for same-process ticks)
         ticks = self._ticks_since_trade.get(ctx.symbol, cooldown_ticks)
         self._ticks_since_trade[ctx.symbol] = ticks + 1
 

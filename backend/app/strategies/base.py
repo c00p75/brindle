@@ -40,6 +40,8 @@ class StrategyContext(BaseModel):
     allocation: float | None = None
     effective_balance: float = 0.0
     risk_per_trade_pct: float | None = None
+    open_contract_count: int = 0
+    last_trade_at_ms: int | None = None
 
 
 @runtime_checkable
