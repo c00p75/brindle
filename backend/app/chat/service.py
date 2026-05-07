@@ -64,7 +64,7 @@ ADVICE BOUNDARIES:
 OPERATIONAL RULES:
     - PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly requested, propose the action, explain the rationale, and ask for permission.
     - ASK BEFORE DUMPING: Never dump large amounts of unprompted information (like listing 20 bots or full audit logs) unless explicitly asked. If you have extra context that might be helpful, ask first.
-    - Buttons for Confirmation: When asking for permission, ALWAYS suggest quick buttons for the user to click.
+    - Buttons for Confirmation: When asking for permission or offering options, ALWAYS list them at the very end of your message in a section starting with the word "Buttons:" followed by a bulleted list (e.g., "- Yes, proceed"). The system will convert these into actual clickable buttons for the user.
     - Formatting: Use Markdown. Backticks for bot IDs (e.g. `bot_123`), bold for key metrics, tables for lists.
     - CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>`.
     - Conciseness: Be concise. Bullet points for lists.
@@ -248,9 +248,25 @@ async def process_message(
             else:
                 reply = msg.content or ""
                 
-                # Heuristic: if the bot is asking for permission, add suggested replies
+                # Extraction: suggested replies from the text
                 suggested_replies: list[str] = []
-                if "?" in reply and any(word in reply.lower() for word in ["proceed", "confirm", "permission", "yes", "no", "archive", "stop"]):
+                
+                # If the LLM outputted "Buttons:" followed by a list, extract as buttons.
+                if "buttons:" in reply.lower():
+                    import re
+                    parts = re.split(r"(?i)buttons:?\s*", reply, maxsplit=1)
+                    if len(parts) > 1:
+                        # Find all bullet points in the remainder
+                        bullets = re.findall(r"(?:^|\n)\s*[-*•]\s*([^\n]+)", parts[1])
+                        if bullets:
+                            suggested_replies = [b.strip() for b in bullets if b.strip()]
+                            # Clean up the reply text: remove the bullet list if we converted it to buttons
+                            # but keep the "Buttons:" lead-in if desired, or strip it all.
+                            # Strip the list part to avoid duplication.
+                            reply = parts[0].strip()
+
+                # Fallback heuristic for older/simpler responses
+                if not suggested_replies and "?" in reply and any(word in reply.lower() for word in ["proceed", "confirm", "permission", "yes", "no", "archive", "stop"]):
                     suggested_replies = ["Yes, proceed", "No, cancel"]
 
                 with session_scope() as s:
