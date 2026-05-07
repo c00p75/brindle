@@ -119,13 +119,13 @@ async def process_message(
     message: str,
     session_id: str | None,
     user: User,
-) -> tuple[str, str, list[str]]:
+) -> tuple[str, str, list[str], list[dict], list[str]]:
     settings = get_settings()
     if not settings.groq_api_key:
         return (
             "Groq API key is not configured.",
             session_id or new_id("sess"),
-            [],
+            [], [], []
         )
 
     with session_scope() as s:
@@ -173,6 +173,8 @@ async def process_message(
 
     client = AsyncGroq(api_key=settings.groq_api_key)
     actions_taken: list[str] = []
+    entities: list[dict] = []
+    steps: list[str] = ["Analyzing request..."]
 
     for _ in range(8):
         response = await client.chat.completions.create(
@@ -186,6 +188,7 @@ async def process_message(
         msg = response.choices[0].message
         
         if msg.tool_calls:
+            steps.append(f"Executing {len(msg.tool_calls)} operations...")
             tool_calls_data = [
                 {
                     "id": tc.id,
@@ -206,25 +209,34 @@ async def process_message(
 
             for tc in msg.tool_calls:
                 tool_name = tc.function.name
+                steps.append(f"Running {tool_name}...")
                 try: tool_args = json.loads(tc.function.arguments)
                 except: tool_args = {}
                 
                 result = await execute_tool(tool_name, tool_args, user)
                 actions_taken.append(tool_name)
-                
+
+                # Extraction: if result contains a bot, add to entities
+                if isinstance(result, dict):
+                    if "bot" in result:
+                        entities.append(result["bot"])
+                    elif "bots" in result and isinstance(result["bots"], list):
+                        entities.extend(result["bots"][:2]) # limit to 2 for cards
+
                 with session_scope() as s:
                     _save_message(s, session_id, "tool", json.dumps(result), tool_call_id=tc.id)
                     s.flush()
                 
                 llm_messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
         else:
+            steps.append("Finalizing response...")
             reply = msg.content or ""
             with session_scope() as s:
                 _save_message(s, session_id, "assistant", reply)
                 s.flush()
-            return reply, session_id, actions_taken
+            return reply, session_id, actions_taken, entities, steps
 
-    return "Processing limit hit.", session_id, actions_taken
+    return "Processing limit hit.", session_id, actions_taken, entities, steps
 
 
 def clear_session(session_id: str) -> None:

@@ -15,12 +15,103 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   actions?: string[];
+  entities?: any[];
+  steps?: string[];
 }
 
 interface ChatResponse {
   reply: string;
   session_id: string;
   actions: string[];
+  entities: any[];
+  steps: string[];
+}
+
+function BotCard({ bot }: { bot: any }) {
+  return (
+    <div style={{
+      background: "#fff",
+      border: "1px solid #e2e8f0",
+      borderRadius: 12,
+      padding: 12,
+      marginTop: 8,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+      boxShadow: "0 4px 12px rgba(0,0,0,0.05)"
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontWeight: 600, fontSize: 13, color: "#1e293b" }}>{bot.name}</span>
+        <span style={{ 
+          fontSize: 10, 
+          padding: "2px 6px", 
+          borderRadius: 10, 
+          background: bot.state === "running" ? "#dcfce7" : "#f1f5f9",
+          color: bot.state === "running" ? "#166534" : "#64748b",
+          fontWeight: 600,
+          textTransform: "uppercase"
+        }}>{bot.state}</span>
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+        <div>
+          <div style={{ fontSize: 10, color: "#94a3b8" }}>ID</div>
+          <div style={{ fontSize: 11, fontFamily: "monospace" }}>{bot.id}</div>
+        </div>
+        {bot.active_config_version && (
+          <div>
+            <div style={{ fontSize: 10, color: "#94a3b8" }}>Config</div>
+            <div style={{ fontSize: 11 }}>v{bot.active_config_version}</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProgressIndicator({ steps }: { steps: string[] }) {
+  return (
+    <div style={{ padding: "8px 12px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0", marginTop: 8, maxWidth: "85%" }}>
+      {steps.map((step, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, opacity: i === steps.length - 1 ? 1 : 0.5 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1" }} />
+          <span style={{ fontSize: 11, color: "#475569" }}>{step}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const DEFAULT_SUGGESTIONS = [
+  "Check my top performing bots",
+  "Analyze performance for last 24h",
+  "Show me recent trade logs",
+  "What is my current risk exposure?",
+];
+
+function SmartSuggestions({ onSelect, suggestions = DEFAULT_SUGGESTIONS }: { onSelect: (s: string) => void, suggestions?: string[] }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12, justifyContent: "center" }}>
+      {suggestions.map((s, i) => (
+        <button
+          key={i}
+          onClick={() => onSelect(s)}
+          style={{
+            padding: "6px 12px",
+            background: "#fff",
+            border: "1px solid #e2e8f0",
+            borderRadius: 20,
+            fontSize: 12,
+            color: "#6366f1",
+            cursor: "pointer",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+            transition: "all 0.2s"
+          }}
+        >
+          {s}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 
@@ -38,10 +129,10 @@ async function sendMessage(
     body: JSON.stringify({ message, session_id: sessionId }),
   });
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
+    const error = await res.text();
+    throw new Error(error);
   }
-  return res.json() as Promise<ChatResponse>;
+  return (await res.json()) as ChatResponse;
 }
 
 const ACTION_LABEL: Record<string, string> = {
@@ -188,7 +279,13 @@ export default function ChatBot() {
       }
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply, actions: data.actions },
+        { 
+          role: "assistant", 
+          content: data.reply, 
+          actions: data.actions,
+          entities: data.entities,
+          steps: data.steps 
+        },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -363,7 +460,10 @@ export default function ChatBot() {
                 <div style={{ textAlign: "center", color: "#94a3b8", marginTop: 100 }}>
                   <div style={{ fontSize: 32, marginBottom: 12 }}>👋</div>
                   <h4 style={{ margin: 0, color: "#1e293b" }}>How can I help you today?</h4>
-                  <p style={{ fontSize: 12, marginTop: 8 }}>Ask me to list bots, check performance, or run a backtest.</p>
+                  <p style={{ fontSize: 12, marginTop: 8, color: "#64748b" }}>
+                    Ask me to list bots, check performance, or run a backtest.
+                  </p>
+                  <SmartSuggestions onSelect={(s) => { setInput(s); }} />
                 </div>
               )}
 
@@ -398,6 +498,14 @@ export default function ChatBot() {
                       {msg.content}
                     </ReactMarkdown>
                   </div>
+                  {msg.steps && msg.steps.length > 0 && <ProgressIndicator steps={msg.steps} />}
+                  {msg.entities && msg.entities.length > 0 && (
+                    <div style={{ maxWidth: "85%", display: "flex", flexDirection: "column", gap: 4 }}>
+                      {msg.entities.map((ent, j) => (
+                        <BotCard key={j} bot={ent} />
+                      ))}
+                    </div>
+                  )}
                   {msg.actions && msg.actions.length > 0 && (
                     <div style={{ maxWidth: "85%", marginTop: 4 }}>
                       {msg.actions.map((a, j) => (

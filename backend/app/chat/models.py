@@ -10,6 +10,8 @@ class ChatResponse(BaseModel):
     reply: str
     session_id: str
     actions: list[str] = []
+    entities: list[dict] = []  # List of bots/strategies mentioned
+    steps: list[str] = []     # Multi-step analysis progress
 
 
 class ChatMessage(BaseModel):
