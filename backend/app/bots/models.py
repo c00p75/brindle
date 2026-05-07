@@ -43,5 +43,6 @@ class Bot(BaseModel):
     owner_email: str
     state: BotState = BotState.DRAFT
     active_config_version: int | None = None
+    allocation: float | None = None
     created_at_ms: int
     updated_at_ms: int

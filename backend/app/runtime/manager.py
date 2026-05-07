@@ -195,6 +195,16 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 if bar is None:
                     continue  # transient fetch failure
 
+                # Calculate effective balance for the strategy
+                effective_balance = 0.0
+                if bot.allocation:
+                    from app.execution import contracts as contracts_svc
+                    pnl = contracts_svc.summary(bot.id)["realized_pnl"]
+                    effective_balance = bot.allocation + pnl
+                else:
+                    balance = get_runtime_manager().get_cached_balance(bot.id)
+                    effective_balance = balance["available"] if balance else 0.0
+
                 ctx = StrategyContext(
                     bot_id=bot.id,
                     strategy_id=strategy.id,
@@ -204,6 +214,8 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     bars=source.history(symbol),
                     current_position_qty=get_position_qty(bot.id, symbol),
                     mark_price=bar.close,
+                    allocation=bot.allocation,
+                    effective_balance=effective_balance,
                 )
                 intents = strategy.on_data(ctx)
 

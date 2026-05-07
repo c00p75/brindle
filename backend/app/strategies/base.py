@@ -37,6 +37,8 @@ class StrategyContext(BaseModel):
     bars: list[Bar]  # most recent first not assumed; treat as time-ordered ascending
     current_position_qty: float = 0.0
     mark_price: float
+    allocation: float | None = None
+    effective_balance: float = 0.0
 
 
 @runtime_checkable

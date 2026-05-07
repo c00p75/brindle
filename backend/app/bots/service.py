@@ -19,12 +19,13 @@ def _row_to_bot(row: BotRow) -> Bot:
         owner_email=row.owner_email,
         state=BotState(row.state),
         active_config_version=row.active_config_version,
+        allocation=row.allocation,
         created_at_ms=row.created_at_ms,
         updated_at_ms=row.updated_at_ms,
     )
 
 
-def create(*, name: str, owner_email: str, actor_email: str, actor_role: str) -> Bot:
+def create(*, name: str, owner_email: str, actor_email: str, actor_role: str, allocation: float | None = None) -> Bot:
     bot_id = new_id("bot")
     now = now_epoch_ms()
     with session_scope() as s:
@@ -34,6 +35,7 @@ def create(*, name: str, owner_email: str, actor_email: str, actor_role: str) ->
             owner_email=owner_email,
             state=BotState.DRAFT.value,
             active_config_version=None,
+            allocation=allocation,
             created_at_ms=now,
             updated_at_ms=now,
         )
@@ -46,7 +48,7 @@ def create(*, name: str, owner_email: str, actor_email: str, actor_role: str) ->
         action="bot.create",
         resource_type="bot",
         resource_id=bot.id,
-        metadata={"name": name},
+        metadata={"name": name, "allocation": allocation},
     )
     return bot
 

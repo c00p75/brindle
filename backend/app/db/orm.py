@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, Index, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, Float, Index, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -36,6 +36,7 @@ class BotRow(Base):
     owner_email: Mapped[str] = mapped_column(String(320), index=True)
     state: Mapped[str] = mapped_column(String(32), index=True)
     active_config_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    allocation: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at_ms: Mapped[int] = mapped_column(BigInteger)
     updated_at_ms: Mapped[int] = mapped_column(BigInteger)
     # Snapshot of broker balance the first time we successfully read it for

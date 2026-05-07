@@ -158,6 +158,7 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "name": {"type": "string", "description": "Display name for the bot"},
+                    "allocation": {"type": "number", "description": "Initial capital allocation/budget for this bot (e.g. 100.0)"},
                 },
                 "required": ["name"],
             },
@@ -308,6 +309,7 @@ async def execute_tool(name: str, args: dict, user) -> dict:
                 owner_email=user.email,
                 actor_email=user.email,
                 actor_role=user.role.value,
+                allocation=args.get("allocation"),
             )
             return {"status": "created", "bot": bot.model_dump()}
 
