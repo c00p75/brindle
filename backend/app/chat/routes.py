@@ -20,12 +20,18 @@ async def history(session_id: str, _: User = Depends(current_user)) -> list[Chat
 
 @router.post("", response_model=ChatResponse)
 async def chat(body: ChatRequest, user: User = Depends(current_user)) -> ChatResponse:
-    reply, session_id, actions = await process_message(
+    reply, session_id, actions, entities, steps = await process_message(
         message=body.message,
         session_id=body.session_id,
         user=user,
     )
-    return ChatResponse(reply=reply, session_id=session_id, actions=actions)
+    return ChatResponse(
+        reply=reply,
+        session_id=session_id,
+        actions=actions,
+        entities=entities,
+        steps=steps
+    )
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
