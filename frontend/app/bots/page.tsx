@@ -23,6 +23,7 @@ export default function BotsPage() {
 function BotsList() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [summaries, setSummaries] = useState<Record<string, ContractsSummary>>({});
+  const [balance, setBalance] = useState<{ available: number; currency: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const user = getUser();
 
@@ -35,6 +36,7 @@ function BotsList() {
     try {
       const list = await api.listBots();
       setBots(list);
+      
       const entries = await Promise.all(list.map(async (b) => {
         try { return [b.id, await api.contractsSummary(b.id)] as const; }
         catch { return [b.id, null] as const; }
@@ -42,6 +44,14 @@ function BotsList() {
       const next: Record<string, ContractsSummary> = {};
       for (const [id, s] of entries) if (s) next[id] = s;
       setSummaries(next);
+
+      // Fetch master balance from first bot with config
+      const refBot = list.find(b => b.active_config_version != null);
+      if (refBot) {
+        api.brokerBalance(refBot.id).then(bal => {
+          if (bal.available != null) setBalance({ available: bal.available, currency: bal.currency || "USD" });
+        }).catch(() => {});
+      }
     }
     catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
   }
@@ -103,6 +113,10 @@ function BotsList() {
       }
       return sortOrder === "asc" ? comparison : -comparison;
     });
+
+  const masterBalStr = balance 
+    ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : "—";
 
   return (
     <>
@@ -169,7 +183,8 @@ function BotsList() {
       {err && <p className="error" style={{ marginBottom: 16 }}>{err}</p>}
 
       {bots.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
+          <DashStat label="Master Broker Balance" value={masterBalStr} valueColor="#4f46e5" />
           <DashStat label="Total realized P&L" value={`$${totals.pnl >= 0 ? "+" : ""}${totals.pnl.toFixed(2)}`}
                     valueColor={totals.pnl >= 0 ? "#008265" : "#cc2626"} />
           <DashStat label="Open contracts" value={String(totals.open)} />
