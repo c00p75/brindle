@@ -299,8 +299,6 @@ function BotDetails() {
         const cs = contractsSummary;
         const settled = cs ? cs.won_count + cs.lost_count : 0;
         const winPct = cs && settled > 0 ? cs.win_rate * 100 : null;
-        // Binary-option breakeven is ~52% on Deriv's 92.5% payout — color
-        // anything below that as a losing trader, not green-because-positive.
         const winColor = winPct == null ? "#aaaaaa"
           : winPct >= 52 ? "#008265"
           : winPct >= 50 ? "#b37600"
@@ -308,13 +306,39 @@ function BotDetails() {
         const isDerivBot = bot.active_config_version != null
           && versions.find(v => v.version === bot.active_config_version)?.config?.broker?.type === "deriv";
 
+        // Virtual Allocation Logic
+        const allocation = bot.allocation;
+        const pnl = cs?.realized_pnl ?? 0;
+        
+        if (allocation) {
+          const virtualBalance = allocation + pnl;
+          const pnlPct = (pnl / allocation) * 100;
+          const pnlValue = `${pnl >= 0 ? "+" : ""}$${pnl.toFixed(2)}`;
+          const pnlPctStr = `${pnl >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`;
+
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
+              <StatCard label="Virtual Balance" value={`$${virtualBalance.toFixed(2)}`} color="#4f46e5"
+                subtext={`$${allocation.toFixed(2)} starting allocation`} subtextColor="#aaaaaa" />
+              <StatCard label="Virtual P&L" value={pnlValue} color={pnl >= 0 ? "#008265" : "#cc2626"}
+                subtext={`${pnlPctStr} change on allocation`} subtextColor={pnl >= 0 ? "#008265" : "#cc2626"} />
+              <StatCard label="Contracts (open / won / lost)"
+                value={cs ? `${cs.open_count} / ${cs.won_count} / ${cs.lost_count}` : "—"}
+                color="#0e0e0e"
+                subtext={cs && cs.total_count > 0 ? `${cs.total_count} total` : undefined} />
+              <StatCard label="Win rate"
+                value={winPct != null ? `${winPct.toFixed(1)}%` : "—"}
+                color={winColor}
+                subtext={winPct != null ? (winPct >= 52 ? "above breakeven" : "below 52% breakeven") : undefined}
+                subtextColor={winColor} />
+            </div>
+          );
+        }
+
+        // Standard Balance Logic (Legacy/Master)
         const balValue = balance && balance.available != null && balance.currency
           ? `${balance.currency === "USD" ? "$" : ""}${balance.available.toFixed(2)}`
           : "—";
-        // Net change is measured against the per-bot starting baseline that
-        // the backend snapshots on the first balance read. NEVER hardcode an
-        // account-size assumption here — different brokers/accounts have
-        // different starting amounts and the user can also reset the baseline.
         const startBal = balance?.starting_balance ?? null;
         const netChange = (balance?.available != null && startBal != null)
           ? balance.available - startBal
