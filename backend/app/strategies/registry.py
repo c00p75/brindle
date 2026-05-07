@@ -7,8 +7,11 @@ from pathlib import Path
 
 from app.strategies.base import Strategy
 from app.strategies.bollinger import BollingerV1
+from app.strategies.dca import DcaV1
 from app.strategies.deriv import DerivV1
+from app.strategies.grid import GridV1
 from app.strategies.macd import MacdV1
+from app.strategies.orb import OrbV1
 from app.strategies.regime import RegimeV1
 from app.strategies.trend import TrendV1
 
@@ -20,6 +23,9 @@ STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "bollinger_v1": BollingerV1,
     "macd_v1": MacdV1,
     "regime_v1": RegimeV1,
+    "grid_v1": GridV1,
+    "dca_v1": DcaV1,
+    "orb_v1": OrbV1,
 }
 
 
