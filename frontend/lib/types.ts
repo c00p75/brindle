@@ -35,6 +35,7 @@ export interface Bot {
   owner_email: string;
   state: BotState;
   active_config_version: number | null;
+  allocation: number | null;
   created_at_ms: number;
   updated_at_ms: number;
 }
