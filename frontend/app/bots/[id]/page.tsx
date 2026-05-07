@@ -322,10 +322,10 @@ function BotDetails() {
 
           return (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 24 }}>
-              <StatCard label="Virtual Balance" value={`$${virtualBalance.toFixed(2)}`} color="#4f46e5"
-                subtext={`$${allocation.toFixed(2)} allocation`} subtextColor="#aaaaaa" />
-              <StatCard label="Virtual P&L" value={pnlValue} color={pnl >= 0 ? "#008265" : "#cc2626"}
-                subtext={`${pnlPctStr} change`} subtextColor={pnl >= 0 ? "#008265" : "#cc2626"} />
+              <StatCard label="Account Balance" value={`$${virtualBalance.toFixed(2)}`} color="#4f46e5"
+                subtext={`$${allocation.toFixed(2)} account allocation`} subtextColor="#aaaaaa" />
+              <StatCard label="Account P&L" value={pnlValue} color={pnl >= 0 ? "#008265" : "#cc2626"}
+                subtext={`${pnlPctStr} account change`} subtextColor={pnl >= 0 ? "#008265" : "#cc2626"} />
               <StatCard label="Broker balance" value={balValue} color="#0e0e0e"
                 subtext="total connected account" subtextColor="#aaaaaa" />
               <StatCard label="Contracts (open/won/lost)"
