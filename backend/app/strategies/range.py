@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 @dataclass
@@ -145,6 +146,10 @@ class RangeV1:
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
 
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         st = self._maybe_relock(ctx, period, breakout_buf)
         if not st.locked or st.high is None or st.low is None:
             return []
@@ -165,15 +170,11 @@ class RangeV1:
         if side is None:
             return []
 
-        target = qty if side == Side.BUY else -qty
-        delta = target - ctx.current_position_qty
-        if delta == 0:
-            return []
-        actual = Side.BUY if delta > 0 else Side.SELL
         st.cooldown = 0
         return [OrderIntent(
             bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"), symbol=ctx.symbol,
-            side=actual, order_type=OrderType.MARKET,
-            quantity=abs(delta), config_version=ctx.config_version,
+            side=side, order_type=OrderType.MARKET,
+            config_version=ctx.config_version,
+            **sizing,
         )]

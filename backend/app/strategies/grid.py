@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 @dataclass
@@ -140,6 +141,11 @@ class GridV1:
             return []
 
         side = Side.SELL if level > st.last_level else Side.BUY
+
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         st.last_level = level
         st.cooldown = 0
         return [OrderIntent(
@@ -149,6 +155,6 @@ class GridV1:
             symbol=ctx.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=qty,
             config_version=ctx.config_version,
+            **sizing,
         )]

@@ -28,6 +28,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _wilder(values: list[float], n: int) -> float | None:
@@ -128,6 +129,11 @@ class VolBreakoutV1:
         mult = float(params.get("expansion_mult", 2.0))
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
+
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         c = self._compute(ctx, params)
         if c is None:
             return []
@@ -139,15 +145,11 @@ class VolBreakoutV1:
         if ratio < mult or bias == 0:
             return []
         side = Side.BUY if bias > 0 else Side.SELL
-        target = qty if side == Side.BUY else -qty
-        delta = target - ctx.current_position_qty
-        if delta == 0:
-            return []
-        actual = Side.BUY if delta > 0 else Side.SELL
         self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"), symbol=ctx.symbol,
-            side=actual, order_type=OrderType.MARKET,
-            quantity=abs(delta), config_version=ctx.config_version,
+            side=side, order_type=OrderType.MARKET,
+            config_version=ctx.config_version,
+            **sizing,
         )]

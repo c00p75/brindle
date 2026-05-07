@@ -39,6 +39,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _sma(values: list[float], n: int) -> float | None:
@@ -185,6 +186,10 @@ class RegimeV1:
         if fast_n <= 0 or slow_n <= fast_n:
             return []
 
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         bars = [b for b in ctx.bars if b.symbol == ctx.symbol]
         if len(bars) < max(slow_n + 1, adx_n * 2 + 1):
             return []
@@ -214,32 +219,23 @@ class RegimeV1:
         crossed_up = fast_prev <= slow_prev and fast_now > slow_now  # type: ignore[operator]
         crossed_down = fast_prev >= slow_prev and fast_now < slow_now  # type: ignore[operator]
 
-        intents: list[OrderIntent] = []
-        pos = ctx.current_position_qty
+        side: Side | None = None
         if crossed_up:
-            target = qty
-            delta = target - pos
-            if delta > 0:
-                intents.append(self._intent(ctx, Side.BUY, abs(delta)))
+            side = Side.BUY
         elif crossed_down:
-            target = -qty
-            delta = target - pos
-            if delta < 0:
-                intents.append(self._intent(ctx, Side.SELL, abs(delta)))
+            side = Side.SELL
 
-        if intents:
-            self._cooldown[ctx.symbol] = 0
-        return intents
+        if side is None:
+            return []
 
-    @staticmethod
-    def _intent(ctx: StrategyContext, side: Side, qty: float) -> OrderIntent:
-        return OrderIntent(
+        self._cooldown[ctx.symbol] = 0
+        return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"),
             symbol=ctx.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=qty,
             config_version=ctx.config_version,
-        )
+            **sizing,
+        )]

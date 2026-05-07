@@ -17,6 +17,7 @@ import math
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _sma(values: list[float], n: int) -> float | None:
@@ -114,6 +115,10 @@ class BollingerV1:
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
 
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]
         if len(closes) < period:
             return []
@@ -131,32 +136,23 @@ class BollingerV1:
         if ticks < cooldown_ticks:
             return []
 
-        intents: list[OrderIntent] = []
-        pos = ctx.current_position_qty
+        side: Side | None = None
         if price < lower:
-            target = qty
-            delta = target - pos
-            if delta > 0:
-                intents.append(self._intent(ctx, Side.BUY, abs(delta)))
+            side = Side.BUY
         elif price > upper:
-            target = -qty
-            delta = target - pos
-            if delta < 0:
-                intents.append(self._intent(ctx, Side.SELL, abs(delta)))
+            side = Side.SELL
 
-        if intents:
-            self._cooldown[ctx.symbol] = 0
-        return intents
+        if side is None:
+            return []
 
-    @staticmethod
-    def _intent(ctx: StrategyContext, side: Side, qty: float) -> OrderIntent:
-        return OrderIntent(
+        self._cooldown[ctx.symbol] = 0
+        return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"),
             symbol=ctx.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=qty,
             config_version=ctx.config_version,
-        )
+            **sizing,
+        )]

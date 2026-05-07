@@ -7,7 +7,7 @@ import ConfigDiff from "@/components/ConfigDiff";
 import Navigation from "@/components/Navigation";
 import { api, getUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
-import type { BotConfig, ConfigVersion, DiffEntry } from "@/lib/types";
+import type { Bot, BotConfig, ConfigVersion, DiffEntry } from "@/lib/types";
 
 const DEFAULT_CONFIG = (botId: string, allocation: number): BotConfig => {
   const alloc = allocation || 100;

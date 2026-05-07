@@ -32,6 +32,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _sma(values: list[float], n: int) -> float | None:
@@ -128,15 +129,15 @@ class MarketMakingV1:
         if side is None:
             return []
 
-        target = qty if side == Side.BUY else -qty
-        delta = target - ctx.current_position_qty
-        if delta == 0:
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
             return []
-        actual = Side.BUY if delta > 0 else Side.SELL
+
         self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"), symbol=ctx.symbol,
-            side=actual, order_type=OrderType.MARKET,
-            quantity=abs(delta), config_version=ctx.config_version,
+            side=side, order_type=OrderType.MARKET,
+            config_version=ctx.config_version,
+            **sizing,
         )]

@@ -22,6 +22,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _sma(values: list[float], n: int) -> float | None:
@@ -127,11 +128,9 @@ class TrendV1:
         if fast_n <= 0 or slow_n <= fast_n:
             return []
 
-        # Use dynamic sizing if risk_per_trade_pct is configured
-        if ctx.risk_per_trade_pct is not None and ctx.effective_balance > 0 and ctx.mark_price > 0:
-            # qty in units = (balance * pct/100) / current_price
-            qty = (ctx.effective_balance * ctx.risk_per_trade_pct / 100.0) / ctx.mark_price
-        elif qty <= 0:
+        # Compute sizing (notional for Deriv, quantity for traditional)
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
             return []
 
         closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]
@@ -162,31 +161,20 @@ class TrendV1:
             if spread_pct < min_cross_pct:
                 return []
 
-        intents: list[OrderIntent] = []
-        pos = ctx.current_position_qty
-
+        side: Side | None = None
         if crossed_up:
-            target = qty
-            delta = target - pos
-            if delta > 0:
-                intents.append(self._intent(ctx, Side.BUY, abs(delta)))
-            elif delta < 0:
-                intents.append(self._intent(ctx, Side.SELL, abs(delta)))
+            side = Side.BUY
         elif crossed_down:
-            target = -qty
-            delta = target - pos
-            if delta < 0:
-                intents.append(self._intent(ctx, Side.SELL, abs(delta)))
-            elif delta > 0:
-                intents.append(self._intent(ctx, Side.BUY, abs(delta)))
+            side = Side.SELL
 
-        if intents:
-            self._ticks_since_trade[ctx.symbol] = 0
+        if side is None:
+            return []
 
-        return intents
+        self._ticks_since_trade[ctx.symbol] = 0
+        return [self._intent(ctx, side, sizing)]
 
     @staticmethod
-    def _intent(ctx: StrategyContext, side: Side, qty: float) -> OrderIntent:
+    def _intent(ctx: StrategyContext, side: Side, sizing: dict) -> OrderIntent:
         return OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,
@@ -194,6 +182,6 @@ class TrendV1:
             symbol=ctx.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=qty,
             config_version=ctx.config_version,
+            **sizing,
         )

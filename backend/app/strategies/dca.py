@@ -23,6 +23,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 class DcaV1:
@@ -77,6 +78,9 @@ class DcaV1:
         # Buy on every Nth tick — note we skip tick 0 to avoid buying
         # immediately on bot startup before any meaningful state exists.
         if ticks > 0 and ticks % interval == 0:
+            sizing = make_intent_kwargs(ctx, qty)
+            if sizing is None:
+                return []
             return [OrderIntent(
                 bot_id=ctx.bot_id,
                 strategy_id=ctx.strategy_id,
@@ -84,7 +88,7 @@ class DcaV1:
                 symbol=ctx.symbol,
                 side=Side.BUY,
                 order_type=OrderType.MARKET,
-                quantity=qty,
                 config_version=ctx.config_version,
+                **sizing,
             )]
         return []

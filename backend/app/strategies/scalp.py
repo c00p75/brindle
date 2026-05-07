@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 @dataclass
@@ -157,6 +158,10 @@ class ScalpV1:
         if atr is None or atr == 0:
             return []
 
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         # Exit logic — managing an open position
         if st.entry_price is not None:
             held = st.tick_count - st.entry_tick
@@ -168,7 +173,6 @@ class ScalpV1:
             )
             if should_exit:
                 exit_side = Side.SELL if st.entry_side == "buy" else Side.BUY
-                exit_qty = abs(ctx.current_position_qty) or qty
                 # Reset state — cooldown begins
                 st.entry_price = None
                 st.entry_side = None
@@ -178,7 +182,8 @@ class ScalpV1:
                     bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
                     client_order_id=new_id("coid"), symbol=ctx.symbol,
                     side=exit_side, order_type=OrderType.MARKET,
-                    quantity=exit_qty, config_version=ctx.config_version,
+                    config_version=ctx.config_version,
+                    **sizing,
                 )]
             return []
 
@@ -200,7 +205,8 @@ class ScalpV1:
                 bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
                 client_order_id=new_id("coid"), symbol=ctx.symbol,
                 side=Side.BUY, order_type=OrderType.MARKET,
-                quantity=qty, config_version=ctx.config_version,
+                config_version=ctx.config_version,
+                **sizing,
             )]
         if recent_move <= -entry_mult * atr:
             st.entry_price = ctx.mark_price
@@ -211,6 +217,7 @@ class ScalpV1:
                 bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
                 client_order_id=new_id("coid"), symbol=ctx.symbol,
                 side=Side.SELL, order_type=OrderType.MARKET,
-                quantity=qty, config_version=ctx.config_version,
+                config_version=ctx.config_version,
+                **sizing,
             )]
         return []

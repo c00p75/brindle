@@ -39,7 +39,7 @@ def validate_bot_config(cfg: BotConfig, bot_allocation: float | None = None) -> 
                 f"is much larger than allocation (${bot_allocation:.0f})"
             )
 
-        stake_est = _estimate_intent_notional(cfg)
+        stake_est = _estimate_intent_notional(cfg, bot_allocation=allocation)
         if stake_est is not None and stake_est > cfg.risk.max_position_notional:
             errors.append(
                 f"strategy will produce intents of ~${stake_est:.0f}, "
@@ -66,24 +66,31 @@ def validate_bot_config(cfg: BotConfig, bot_allocation: float | None = None) -> 
     return errors, warnings
 
 
-def _estimate_intent_notional(cfg: BotConfig) -> float | None:
+def _estimate_intent_notional(cfg: BotConfig, bot_allocation: float | None = None) -> float | None:
     params = cfg.strategy.params or {}
 
-    # 1. Notional-based strategies (Deriv specific)
-    if cfg.strategy.strategy_id in {"deriv_v1", "scalp_v1"}:
-        stake = params.get("stake")
-        return float(stake) if stake is not None else None
+    # When allocation is set (Deriv-style bots), ALL strategies use
+    # notional-based sizing via app.strategies.sizing. The stake is either
+    # risk_per_trade_pct × allocation, or the 'stake'/'qty' param as USD.
+    if bot_allocation is not None:
+        if cfg.risk.risk_per_trade_pct is not None and cfg.risk.risk_per_trade_pct > 0:
+            return bot_allocation * cfg.risk.risk_per_trade_pct / 100.0
 
-    # 2. Quantity-based strategies (Trend, Bollinger, etc.)
-    # If risk_per_trade_pct is set, the strategy will ignore 'qty' and size dynamically.
-    # In that case, we can't estimate a static notional easily without a price.
+        # For deriv_v1, check 'stake'; for all others, check 'qty'
+        stake = params.get("stake")
+        if stake is not None:
+            return float(stake)
+        qty = params.get("qty")
+        if qty is not None:
+            return float(qty)
+        return None
+
+    # Non-allocation bots: dynamic sizing makes notional unpredictable
     if cfg.risk.risk_per_trade_pct is not None and cfg.risk.risk_per_trade_pct > 0:
         return None
 
     qty = params.get("qty")
     if qty is not None:
-        # We don't have mark_price here, so we treat 1.0 as a floor (e.g. for crypto/forex)
-        # or just return the quantity as a 'notional proxy' if the symbol is USD-denominated.
         return float(qty)
 
     return None

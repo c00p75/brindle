@@ -129,7 +129,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     )
     try:
         for symbol in cfg.symbols:
-            await source.warm_up(symbol, n=25)  # enough for trend_v1's slow_n=20
+            await source.warm_up(symbol, n=60)  # enough for MACD (36), Regime (29), Range (50)
     except Exception as e:
         log.error("runtime startup failed bot=%s (warm_up): %s", bot.id, e)
         emit_alert(

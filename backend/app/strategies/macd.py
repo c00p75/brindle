@@ -18,6 +18,7 @@ from __future__ import annotations
 from app.core.ids import new_id
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
+from app.strategies.sizing import make_intent_kwargs
 
 
 def _ema(values: list[float], n: int) -> list[float]:
@@ -145,6 +146,10 @@ class MacdV1:
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 8))
 
+        sizing = make_intent_kwargs(ctx, qty)
+        if sizing is None:
+            return []
+
         closes = [b.close for b in ctx.bars if b.symbol == ctx.symbol]
         if len(closes) < slow + signal + 1:
             return []
@@ -163,32 +168,23 @@ class MacdV1:
         if ticks < cooldown_ticks:
             return []
 
-        intents: list[OrderIntent] = []
-        pos = ctx.current_position_qty
+        side: Side | None = None
         if crossed_up:
-            target = qty
-            delta = target - pos
-            if delta > 0:
-                intents.append(self._intent(ctx, Side.BUY, abs(delta)))
+            side = Side.BUY
         elif crossed_down:
-            target = -qty
-            delta = target - pos
-            if delta < 0:
-                intents.append(self._intent(ctx, Side.SELL, abs(delta)))
+            side = Side.SELL
 
-        if intents:
-            self._cooldown[ctx.symbol] = 0
-        return intents
+        if side is None:
+            return []
 
-    @staticmethod
-    def _intent(ctx: StrategyContext, side: Side, qty: float) -> OrderIntent:
-        return OrderIntent(
+        self._cooldown[ctx.symbol] = 0
+        return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"),
             symbol=ctx.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=qty,
             config_version=ctx.config_version,
-        )
+            **sizing,
+        )]
