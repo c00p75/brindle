@@ -26,12 +26,14 @@ function BotsList() {
   const [err, setErr] = useState<string | null>(null);
   const user = getUser();
 
+  const [filter, setFilter] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "pnl" | "winrate" | "updated">("updated");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   async function refresh() {
     try {
       const list = await api.listBots();
       setBots(list);
-      // Fan out — fetch each bot's contract summary in parallel. Best-effort: a
-      // failed call shouldn't block the rest, just leave that bot's row blank.
       const entries = await Promise.all(list.map(async (b) => {
         try { return [b.id, await api.contractsSummary(b.id)] as const; }
         catch { return [b.id, null] as const; }
@@ -42,6 +44,7 @@ function BotsList() {
     }
     catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
   }
+
   useEffect(() => {
     refresh();
     const stopListening = events.on(GLOBAL_EVENTS.STATE_CHANGED, () => {
@@ -72,6 +75,31 @@ function BotsList() {
   }
 
   const running = bots.filter((b) => b.state === "running").length;
+
+  const filteredAndSortedBots = bots
+    .filter((b) => {
+      const search = filter.toLowerCase();
+      return b.name.toLowerCase().includes(search) || b.id.toLowerCase().includes(search);
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "name") {
+        comparison = a.name.localeCompare(b.name);
+      } else if (sortBy === "pnl") {
+        const pnlA = summaries[a.id]?.realized_pnl ?? -Infinity;
+        const pnlB = summaries[b.id]?.realized_pnl ?? -Infinity;
+        comparison = pnlA - pnlB;
+      } else if (sortBy === "winrate") {
+        const sA = summaries[a.id];
+        const sB = summaries[b.id];
+        const wrA = sA && (sA.won_count + sA.lost_count) > 0 ? sA.won_count / (sA.won_count + sA.lost_count) : -1;
+        const wrB = sB && (sB.won_count + sB.lost_count) > 0 ? sB.won_count / (sB.won_count + sB.lost_count) : -1;
+        comparison = wrA - wrB;
+      } else if (sortBy === "updated") {
+        comparison = a.updated_at_ms - b.updated_at_ms;
+      }
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
 
   return (
     <>
@@ -108,14 +136,14 @@ function BotsList() {
               onClick={async () => {
                 const description = prompt(
                   "Describe a strategy in plain English. Example:\n\n" +
-                  '"Buy when EUR/USD\'s 5-period SMA crosses above the 20-period SMA, ' +
-                  'sell on the reverse. Cooldown 10 ticks."',
+                  '\"Buy when EUR/USD\'s 5-period SMA crosses above the 20-period SMA, ' +
+                  'sell on the reverse. Cooldown 10 ticks.\"'
                 );
                 if (!description) return;
                 try {
                   const r = await api.generateStrategy(description);
                   if (r.ok) {
-                    alert(`✓ Generated strategy "${r.strategy_id}"\n\n` +
+                    alert(`✓ Generated strategy \"${r.strategy_id}\"\n\n` +
                           `Saved to: ${r.file_path}\n\n` +
                           `${r.note}\n\nRestart the backend to load it into the registry.`);
                   } else {
@@ -164,6 +192,40 @@ function BotsList() {
         </div>
       ) : (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #f0f0f0", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fafafa" }}>
+            <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
+              <input
+                type="text"
+                placeholder="Search bots..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                style={{ width: "100%", paddingLeft: 32, fontSize: 13 }}
+              />
+              <svg width="14" height="14" style={{ position: "absolute", left: 10, top: 10, opacity: 0.4 }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>Sort by:</span>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as any)}
+                style={{ fontSize: 12, padding: "4px 8px", background: "#fff" }}
+              >
+                <option value="updated">Last Updated</option>
+                <option value="name">Name</option>
+                <option value="pnl">P&L</option>
+                <option value="winrate">Win Rate</option>
+              </select>
+              <button 
+                className="btn ghost" 
+                onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                style={{ padding: "4px 8px", fontSize: 12 }}
+              >
+                {sortOrder === "asc" ? "↑" : "↓"}
+              </button>
+            </div>
+          </div>
           <table>
             <thead>
               <tr>
@@ -179,7 +241,7 @@ function BotsList() {
               </tr>
             </thead>
             <tbody>
-              {bots.map((b) => (
+              {filteredAndSortedBots.map((b) => (
                 <tr key={b.id}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
