@@ -17,6 +17,7 @@ interface Message {
   actions?: string[];
   entities?: any[];
   steps?: string[];
+  suggested_replies?: string[];
 }
 
 interface ChatResponse {
@@ -25,6 +26,7 @@ interface ChatResponse {
   actions: string[];
   entities: any[];
   steps: string[];
+  suggested_replies: string[];
 }
 
 function BotCard({ bot }: { bot: any }) {
@@ -284,7 +286,8 @@ export default function ChatBot() {
           content: data.reply, 
           actions: data.actions,
           entities: data.entities,
-          steps: data.steps 
+          steps: data.steps,
+          suggested_replies: data.suggested_replies
         },
       ]);
     } catch (err) {
@@ -539,6 +542,22 @@ export default function ChatBot() {
                       ))}
                     </div>
                   )}
+                  {msg.suggested_replies && msg.suggested_replies.length > 0 && (
+                    <div style={{ alignSelf: "center", width: "100%", display: "flex", justifyContent: "center" }}>
+                      <SmartSuggestions 
+                        suggestions={msg.suggested_replies} 
+                        onSelect={(s) => { 
+                          setInput(s); 
+                          // Auto-send after a tiny delay to show the input filling
+                          setTimeout(() => {
+                            const btn = document.querySelector('button[title="Send"]') as HTMLButtonElement;
+                            if (btn) btn.click();
+                            else handleSend(); // Fallback if ref or query fails
+                          }, 50);
+                        }} 
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -587,6 +606,7 @@ export default function ChatBot() {
             />
             <button
               onClick={handleSend}
+              title="Send"
               disabled={loading || !input.trim()}
               style={{
                 background: loading || !input.trim() ? "#c7d2fe" : "#6366f1",

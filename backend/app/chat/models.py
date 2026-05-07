@@ -12,6 +12,7 @@ class ChatResponse(BaseModel):
     actions: list[str] = []
     entities: list[dict] = []  # List of bots/strategies mentioned
     steps: list[str] = []     # Multi-step analysis progress
+    suggested_replies: list[str] = [] # Quick buttons for user
 
 
 class ChatMessage(BaseModel):

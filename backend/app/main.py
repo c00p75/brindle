@@ -18,6 +18,7 @@ from app.research.routes import router as research_router
 from app.auth.service import seed_default_users
 from app.bots.routes import router as bots_router
 from app.configs.routes import router as configs_router
+from app.llm.routes import router as llm_router
 from app.core.logging_config import configure_logging
 from app.core.metrics import bots_running, http_request_duration_seconds, http_requests_total
 from app.core.settings import get_settings
@@ -109,6 +110,7 @@ def create_app() -> FastAPI:
     app.include_router(alerts_router)
     app.include_router(research_router)
     app.include_router(chat_router)
+    app.include_router(llm_router)
     return app
 
 

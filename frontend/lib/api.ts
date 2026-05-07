@@ -114,6 +114,47 @@ export const api = {
   stopAllBots(): Promise<{ stopped: string[]; failed: { id: string; error: string }[]; count: number }> {
     return request(`/api/bots/stop-all`, { method: "POST" });
   },
+  // ──────────── LLM-powered features (Groq) ────────────
+  generateStrategy(description: string): Promise<{
+    ok: boolean;
+    strategy_id?: string;
+    param_schema?: Record<string, unknown>;
+    file_path?: string;
+    note?: string;
+    errors?: string[];
+    code?: string;
+  }> {
+    return request(`/api/llm/strategies/generate`, {
+      method: "POST",
+      body: JSON.stringify({ description }),
+    });
+  },
+  botNarrative(
+    botId: string, since_ms: number, until_ms: number, granularity = "hour"
+  ): Promise<{ narrative_md: string; window: { since_ms: number; until_ms: number } }> {
+    const q = new URLSearchParams({
+      since_ms: String(since_ms), until_ms: String(until_ms), granularity,
+    });
+    return request(`/api/llm/bots/${botId}/narrative?${q}`);
+  },
+  alertInsights(limit = 50): Promise<{
+    groups: { pattern: string; count: number; severity: string;
+              likely_cause: string; suggested_action: string }[];
+    summary: string;
+    input_count: number;
+  }> {
+    return request(`/api/llm/alerts/insights?limit=${limit}`);
+  },
+  configSanityCheck(config: BotConfig, diff: DiffEntry[]): Promise<{
+    warnings: { severity: "info" | "warning" | "critical"; field: string; message: string }[];
+    ok_to_apply: boolean;
+    summary: string;
+  }> {
+    return request(`/api/llm/configs/sanity-check`, {
+      method: "POST",
+      body: JSON.stringify({ config, diff }),
+    });
+  },
   listConfigs(botId: string): Promise<ConfigVersion[]> {
     return request(`/api/bots/${botId}/configs`);
   },

@@ -517,6 +517,8 @@ function BotDetails() {
       )}
       {/* Analytics Tab */}
       {tab === "analytics" && (
+        <>
+          <NarrativeCard botId={id} timeRange={timeRange} />
         <div className="card" style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
           <div style={{ padding: "14px 20px", borderBottom: "1px solid #e8eaeb" }}>
             <h2 style={{ margin: 0 }}>Performance Analytics ({timeRange})</h2>
@@ -554,6 +556,7 @@ function BotDetails() {
             </table>
           )}
         </div>
+        </>
       )}
 
       {/* Config Tab */}

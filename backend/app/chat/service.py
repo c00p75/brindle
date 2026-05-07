@@ -50,10 +50,11 @@ Capabilities:
 - Answer questions about the platform state
 
 Rules:
-- PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly and specifically requested (e.g. user said "Stop bot_1"), you MUST first propose the action, explain the rationale, and wait for the user to say "Yes" or "Go ahead".
-- Formatting: Use Markdown for all technical data. Use backticks for bot IDs (e.g. `bot_123`), bold for key metrics, and tables for lists of performance data.
-- CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>` in your natural language response.
-- Conciseness: Be concise. Use bullet points for lists.
+    - PERMISSION FIRST: Before performing any 'Write' action (stop, archive, update_config) that wasn't explicitly and specifically requested (e.g. user said "Stop bot_1"), you MUST first propose the action, explain the rationale, and ask for permission.
+    - Buttons for Confirmation: When asking for permission, ALWAYS suggest quick buttons for the user to click.
+    - Formatting: Use Markdown for all technical data. Use backticks for bot IDs (e.g. `bot_123`), bold for key metrics, and tables for lists of performance data.
+    - CLEAN OUTPUT: NEVER output internal tool call tags like `<function=...>` or `</function>` in your natural language response.
+    - Conciseness: Be concise. Use bullet points for lists.
 """
 
 
@@ -229,14 +230,19 @@ async def process_message(
                 
                 llm_messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
         else:
-            steps.append("Finalizing response...")
             reply = msg.content or ""
+            
+            # Heuristic: if the bot is asking for permission, add suggested replies
+            suggested_replies: list[str] = []
+            if "?" in reply and any(word in reply.lower() for word in ["proceed", "confirm", "permission", "yes", "no", "archive", "stop"]):
+                suggested_replies = ["Yes, proceed", "No, cancel"]
+
             with session_scope() as s:
                 _save_message(s, session_id, "assistant", reply)
                 s.flush()
-            return reply, session_id, actions_taken, entities, steps
+            return reply, session_id, actions_taken, entities, steps, suggested_replies
 
-    return "Processing limit hit.", session_id, actions_taken, entities, steps
+    return "Processing limit hit.", session_id, actions_taken, entities, steps, []
 
 
 def clear_session(session_id: str) -> None:

@@ -94,6 +94,34 @@ function BotsList() {
               ⛔ Stop all ({running})
             </button>
           )}
+          {can(user?.role, "config:draft") && (
+            <button
+              type="button"
+              className="btn ghost"
+              onClick={async () => {
+                const description = prompt(
+                  "Describe a strategy in plain English. Example:\n\n" +
+                  '"Buy when EUR/USD\'s 5-period SMA crosses above the 20-period SMA, ' +
+                  'sell on the reverse. Cooldown 10 ticks."',
+                );
+                if (!description) return;
+                try {
+                  const r = await api.generateStrategy(description);
+                  if (r.ok) {
+                    alert(`✓ Generated strategy "${r.strategy_id}"\n\n` +
+                          `Saved to: ${r.file_path}\n\n` +
+                          `${r.note}\n\nRestart the backend to load it into the registry.`);
+                  } else {
+                    alert(`Generation failed:\n\n${(r.errors || []).join("\n")}`);
+                  }
+                } catch (e) { alert(e instanceof Error ? e.message : "failed"); }
+              }}
+              style={{ textDecoration: "none" }}
+              title="Generate a custom strategy from a natural-language description (Groq)"
+            >
+              ✨ Generate strategy
+            </button>
+          )}
           {can(user?.role, "bot:create") && (
             <Link href="/bots/new" className="btn" style={{ textDecoration: "none" }}>+ New bot</Link>
           )}

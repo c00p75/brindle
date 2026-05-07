@@ -20,7 +20,7 @@ async def history(session_id: str, _: User = Depends(current_user)) -> list[Chat
 
 @router.post("", response_model=ChatResponse)
 async def chat(body: ChatRequest, user: User = Depends(current_user)) -> ChatResponse:
-    reply, session_id, actions, entities, steps = await process_message(
+    reply, session_id, actions, entities, steps, suggestions = await process_message(
         message=body.message,
         session_id=body.session_id,
         user=user,
@@ -30,7 +30,8 @@ async def chat(body: ChatRequest, user: User = Depends(current_user)) -> ChatRes
         session_id=session_id,
         actions=actions,
         entities=entities,
-        steps=steps
+        steps=steps,
+        suggested_replies=suggestions
     )
 
 
