@@ -3,7 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { getToken } from "../lib/api";
+import { getToken, api } from "../lib/api";
+
+interface ChatSession {
+  id: string;
+  title: string;
+  updated_at_ms: number;
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -104,6 +110,8 @@ export default function ChatBot() {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [authed, setAuthed] = useState(false);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -112,14 +120,59 @@ export default function ChatBot() {
   }, [open]);
 
   useEffect(() => {
+    if (open) {
+      loadSessions();
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 50);
-  }, [open]);
+  const loadSessions = async () => {
+    try {
+      const data = await api.listChatSessions();
+      setSessions(data as any);
+    } catch (err) {
+      console.error("Failed to load sessions", err);
+    }
+  };
 
-  if (!authed) return null;
+  const startNewChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    setIsHistoryOpen(false);
+  };
+
+  const switchSession = async (id: string) => {
+    setSessionId(id);
+    setIsHistoryOpen(false);
+    setLoading(true);
+    try {
+      const history = await api.getChatHistory(id);
+      setMessages(history.map(m => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        actions: m.role === "assistant" ? [] : undefined
+      })));
+    } catch (err) {
+      console.error("Failed to load history", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteSession = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await api.deleteChatSession(id);
+      setSessions(prev => prev.filter(s => s.id !== id));
+      if (sessionId === id) startNewChat();
+    } catch (err) {
+      console.error("Failed to delete session", err);
+    }
+  };
 
   async function handleSend() {
     const text = input.trim();
@@ -129,7 +182,10 @@ export default function ChatBot() {
     setLoading(true);
     try {
       const data = await sendMessage(text, sessionId);
-      setSessionId(data.session_id);
+      if (!sessionId) {
+        setSessionId(data.session_id);
+        loadSessions();
+      }
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: data.reply, actions: data.actions },
@@ -152,11 +208,6 @@ export default function ChatBot() {
       e.preventDefault();
       handleSend();
     }
-  }
-
-  function handleClear() {
-    setMessages([]);
-    setSessionId(null);
   }
 
   return (
@@ -252,122 +303,121 @@ export default function ChatBot() {
               justifyContent: "space-between",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 18 }}>✦</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 32, height: 32, background: "rgba(255,255,255,0.2)", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center" }}>✦</div>
               <div>
-                <div style={{ color: "#fff", fontWeight: 700, fontSize: 14, lineHeight: 1.2 }}>
-                  Brindle Assistant
-                </div>
-                <div style={{ color: "#c7d2fe", fontSize: 11 }}>Powered by Groq · Llama 3.3 70B</div>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: "#fff" }}>Brindle Assistant</h3>
+                <p style={{ margin: 0, fontSize: 11, opacity: 0.8, color: "#fff" }}>Powered by Groq · Llama 3.3 70B</p>
               </div>
             </div>
-            <button
-              onClick={handleClear}
-              title="Clear conversation"
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+                style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+              >
+                {isHistoryOpen ? "Chat" : "History"}
+              </button>
+              <button
+                onClick={startNewChat}
+                style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "#fff", padding: "4px 8px", borderRadius: 6, fontSize: 12, cursor: "pointer" }}
+              >
+                New
+              </button>
+            </div>
+          </div>
+
+          {/* Body */}
+          {isHistoryOpen ? (
+            <div style={{ flex: 1, overflowY: "auto", padding: 16, background: "#f8f9ff" }}>
+              <h4 style={{ margin: "0 0 16px 0", fontSize: 14, color: "#64748b" }}>Recent Chats</h4>
+              {sessions.length === 0 ? (
+                <div style={{ textAlign: "center", color: "#94a3b8", marginTop: 40, fontSize: 13 }}>No history yet</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {sessions.map(s => (
+                    <div
+                      key={s.id}
+                      onClick={() => switchSession(s.id)}
+                      style={{ padding: "12px 16px", background: sessionId === s.id ? "#f1f5f9" : "#fff", border: "1px solid #e2e8f0", borderRadius: 12, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 500, color: "#334155", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</span>
+                      <button onClick={(e) => deleteSession(e, s.id)} style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div
               style={{
-                background: "rgba(255,255,255,0.15)",
-                border: "none",
-                borderRadius: 8,
-                color: "#fff",
-                cursor: "pointer",
-                fontSize: 12,
-                padding: "4px 8px",
+                flex: 1,
+                overflowY: "auto",
+                padding: "12px 12px 4px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                background: "#f8f9ff",
               }}
             >
-              Clear
-            </button>
-          </div>
-
-          {/* Messages */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: "12px 12px 4px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-              background: "#f8f9ff",
-            }}
-          >
-            {messages.length === 0 && (
-              <div
-                style={{
-                  textAlign: "center",
-                  color: "#94a3b8",
-                  fontSize: 13,
-                  marginTop: 24,
-                  padding: "0 16px",
-                }}
-              >
-                <div style={{ fontSize: 28, marginBottom: 8 }}>✦</div>
-                <div style={{ fontWeight: 600, color: "#6366f1", marginBottom: 4 }}>
-                  How can I help?
+              {messages.length === 0 && (
+                <div style={{ textAlign: "center", color: "#94a3b8", marginTop: 100 }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>👋</div>
+                  <h4 style={{ margin: 0, color: "#1e293b" }}>How can I help you today?</h4>
+                  <p style={{ fontSize: 12, marginTop: 8 }}>Ask me to list bots, check performance, or run a backtest.</p>
                 </div>
-                <div>Try: "Show me all bots" · "Start bot_xyz" · "Run a backtest on EUR/USD"</div>
-              </div>
-            )}
+              )}
 
-            {messages.map((msg, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: msg.role === "user" ? "flex-end" : "flex-start",
-                }}
-              >
+              {messages.map((msg, i) => (
                 <div
-                  className="chat-msg"
+                  key={i}
                   style={{
-                    maxWidth: "85%",
-                    padding: "10px 13px",
-                    borderRadius:
-                      msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                    background: msg.role === "user" ? "#6366f1" : "#fff",
-                    color: msg.role === "user" ? "#fff" : "#1e293b",
-                    fontSize: 13.5,
-                    border: msg.role === "assistant" ? "1px solid #e2e8f0" : "none",
-                    boxShadow:
-                      msg.role === "user"
-                        ? "0 2px 8px rgba(99,102,241,0.3)"
-                        : "0 1px 4px rgba(0,0,0,0.08)",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: msg.role === "user" ? "flex-end" : "flex-start",
                   }}
                 >
-                  <ReactMarkdown 
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      a: ({node, ...props}) => <a {...props} style={{ color: msg.role === "user" ? "#fff" : "#6366f1", textDecoration: "underline" }} target="_blank" rel="noopener noreferrer" />
+                  <div
+                    className="chat-msg"
+                    style={{
+                      maxWidth: "85%",
+                      padding: "10px 13px",
+                      borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                      background: msg.role === "user" ? "#6366f1" : "#fff",
+                      color: msg.role === "user" ? "#fff" : "#1e293b",
+                      fontSize: 13.5,
+                      border: msg.role === "assistant" ? "1px solid #e2e8f0" : "none",
+                      boxShadow: msg.role === "user" ? "0 2px 8px rgba(99,102,241,0.3)" : "0 1px 4px rgba(0,0,0,0.08)",
                     }}
                   >
-                    {msg.content}
-                  </ReactMarkdown>
-                </div>
-                {msg.actions && msg.actions.length > 0 && (
-                  <div style={{ maxWidth: "85%", marginTop: 4 }}>
-                    {msg.actions.map((a, j) => (
-                      <ActionPill key={j} action={a} />
-                    ))}
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm]}
+                      components={{
+                        a: ({node, ...props}) => <a {...props} style={{ color: msg.role === "user" ? "#fff" : "#6366f1", textDecoration: "underline" }} target="_blank" rel="noopener noreferrer" />
+                      }}
+                    >
+                      {msg.content}
+                    </ReactMarkdown>
                   </div>
-                )}
-              </div>
-            ))}
-
-            {loading && (
-              <div style={{ alignSelf: "flex-start" }}>
-                <div
-                  style={{
-                    background: "#fff",
-                    borderRadius: "16px 16px 16px 4px",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                  }}
-                >
-                  <TypingIndicator />
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div style={{ maxWidth: "85%", marginTop: 4 }}>
+                      {msg.actions.map((a, j) => (
+                        <ActionPill key={j} action={a} />
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            <div ref={bottomRef} />
-          </div>
+              ))}
+
+              {loading && (
+                <div style={{ alignSelf: "flex-start" }}>
+                  <div style={{ background: "#fff", borderRadius: "16px 16px 16px 4px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                    <TypingIndicator />
+                  </div>
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+          )}
 
           {/* Input bar */}
           <div

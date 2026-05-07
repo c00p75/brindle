@@ -2,10 +2,20 @@ from fastapi import APIRouter, Depends
 
 from app.auth.deps import current_user
 from app.auth.models import User
-from app.chat.models import ChatRequest, ChatResponse
-from app.chat.service import clear_session, process_message
+from app.chat.models import ChatMessage, ChatRequest, ChatResponse, ChatSession
+from app.chat.service import clear_session, get_history, list_sessions, process_message
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+
+
+@router.get("/sessions", response_model=list[ChatSession])
+async def sessions(user: User = Depends(current_user)) -> list[ChatSession]:
+    return await list_sessions(user.id)
+
+
+@router.get("/sessions/{session_id}/history", response_model=list[ChatMessage])
+async def history(session_id: str, _: User = Depends(current_user)) -> list[ChatMessage]:
+    return await get_history(session_id)
 
 
 @router.post("", response_model=ChatResponse)

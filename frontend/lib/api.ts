@@ -231,4 +231,13 @@ export const api = {
   resetPassword(token: string, new_password: string): Promise<{ detail: string }> {
     return request("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ token, new_password }) });
   },
+  listChatSessions(): Promise<ConfigVersion[]> {
+    return request("/api/chat/sessions");
+  },
+  getChatHistory(sessionId: string): Promise<any[]> {
+    return request(`/api/chat/sessions/${sessionId}/history`);
+  },
+  deleteChatSession(sessionId: string): Promise<void> {
+    return request(`/api/chat/sessions/${sessionId}`, { method: "DELETE" });
+  },
 };
