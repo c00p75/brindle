@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getToken, api } from "../lib/api";
+import { events, GLOBAL_EVENTS } from "../lib/events";
 
 interface ChatSession {
   id: string;
@@ -278,6 +279,9 @@ export default function ChatBot() {
       if (!sessionId) {
         setSessionId(data.session_id);
         loadSessions();
+      }
+      if (data.actions && data.actions.length > 0) {
+        events.emit(GLOBAL_EVENTS.STATE_CHANGED);
       }
       setMessages((prev) => [
         ...prev,

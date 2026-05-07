@@ -946,3 +946,53 @@ function EquityChart({ data, baseline }: { data: BalanceSnapshot[], baseline?: n
   );
 }
 
+
+function NarrativeCard({ botId, timeRange }: {
+  botId: string;
+  timeRange: "1h" | "24h" | "7d" | "30d";
+}) {
+  const [text, setText] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function generate() {
+    setErr(null);
+    setLoading(true);
+    try {
+      const now = Date.now();
+      const ranges: Record<typeof timeRange, number> = {
+        "1h": 3_600_000, "24h": 86_400_000, "7d": 604_800_000, "30d": 2_592_000_000,
+      };
+      const granularity: Record<typeof timeRange, "minute" | "hour" | "day"> = {
+        "1h": "minute", "24h": "hour", "7d": "hour", "30d": "day",
+      };
+      const r = await api.botNarrative(botId, now - ranges[timeRange], now, granularity[timeRange]);
+      setText(r.narrative_md);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <h2 style={{ margin: 0 }}>✨ AI Performance Narrative ({timeRange})</h2>
+        <button className="btn ghost" disabled={loading} onClick={generate} style={{ fontSize: 12 }}>
+          {loading ? "Generating…" : text ? "Regenerate" : "Generate"}
+        </button>
+      </div>
+      {err && <p style={{ color: "#cc2626", fontSize: 13 }}>{err}</p>}
+      {!text && !err && !loading && (
+        <p style={{ color: "#aaaaaa", fontSize: 13, margin: 0 }}>
+          Click <b>Generate</b> for a plain-English summary of this windows performance.
+          Uses Groq (llama-3.3-70b) on aggregated server-side data — no individual trades sent to the LLM.
+        </p>
+      )}
+      {text && (
+        <div style={{ fontSize: 14, lineHeight: 1.55, whiteSpace: "pre-wrap" }}>{text}</div>
+      )}
+    </div>
+  );
+}

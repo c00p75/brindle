@@ -6,6 +6,7 @@ import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api, getUser } from "@/lib/api";
 import { can } from "@/lib/rbac";
+import { events, GLOBAL_EVENTS } from "@/lib/events";
 import type { Bot, ContractsSummary } from "@/lib/types";
 
 export default function BotsPage() {
@@ -43,8 +44,14 @@ function BotsList() {
   }
   useEffect(() => {
     refresh();
+    const stopListening = events.on(GLOBAL_EVENTS.STATE_CHANGED, () => {
+      refresh();
+    });
     const t = setInterval(refresh, 15000);
-    return () => clearInterval(t);
+    return () => {
+      stopListening();
+      clearInterval(t);
+    };
   }, []);
 
   const totals = Object.values(summaries).reduce(

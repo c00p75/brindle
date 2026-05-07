@@ -359,6 +359,7 @@ function ConfigEditor() {
           )}
           <h3>Diff vs active</h3>
           <ConfigDiff changes={diff} />
+          <SanityCheckBanner config={cfg} diff={diff} />
           {risky && (
             <div style={{ marginTop: 12, padding: 12, background: "#fee2e2", borderRadius: 8 }}>
               <b>This change affects risk / broker / strategy.</b> Reviewer approval is recommended.
@@ -448,6 +449,63 @@ function SymbolPicker({ selected, onChange, namespace }: {
                 style={{ background: "none", border: "none", cursor: "pointer", padding: 0, lineHeight: 1, color: "#3b82f6" }}>×</button>
             </span>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SanityCheckBanner({ config, diff }: { config: BotConfig; diff: DiffEntry[] }) {
+  const [data, setData] = useState<Awaited<ReturnType<typeof api.configSanityCheck>> | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Auto-clear when the diff changes (re-validation)
+  useEffect(() => { setData(null); setErr(null); }, [diff]);
+
+  async function review() {
+    setErr(null); setLoading(true);
+    try { setData(await api.configSanityCheck(config, diff)); }
+    catch (e) { setErr(e instanceof Error ? e.message : "failed"); }
+    finally { setLoading(false); }
+  }
+
+  if (diff.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 12, padding: 12, background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontWeight: 700 }}>✨ AI sanity check</div>
+        <button className="btn ghost" disabled={loading} onClick={review} style={{ fontSize: 12, padding: "3px 8px" }}>
+          {loading ? "Reviewing…" : data ? "Re-review" : "Review before apply"}
+        </button>
+      </div>
+      {err && <div style={{ color: "#cc2626", fontSize: 12 }}>{err}</div>}
+      {!data && !err && !loading && (
+        <div style={{ fontSize: 12, color: "#64748b" }}>
+          Optional. Asks Groq to flag obvious foot-guns in this config diff (e.g. <code>kill_switch</code> turned off,
+          drawdown limit too loose). Advisory only — the typed-confirmation gate below is still the hard guard.
+        </div>
+      )}
+      {data && (
+        <div>
+          {data.summary && (
+            <div style={{ fontSize: 13, marginBottom: 8 }}><b>Summary:</b> {data.summary}</div>
+          )}
+          {data.warnings.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#008265" }}>✓ No issues detected.</div>
+          ) : (
+            <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13 }}>
+              {data.warnings.map((w, i) => (
+                <li key={i} style={{
+                  marginBottom: 4,
+                  color: w.severity === "critical" ? "#cc2626" : w.severity === "warning" ? "#b37600" : "#555",
+                }}>
+                  <b>[{w.severity}]</b> <code>{w.field}</code> — {w.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>
