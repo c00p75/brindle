@@ -156,7 +156,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
     log.info("runtime started bot=%s strategy=%s symbols=%s source=%s",
              bot.id, strategy.id, cfg.symbols, type(source).__name__)
     # Seed the balance cache immediately so the UI has data on first load.
-    await _poll_balance(bot.id, adapter)
+    await _poll_balance(bot, adapter)
 
     try:
         while True:
@@ -177,7 +177,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     return
             # Every BALANCE_POLL_INTERVAL ticks, refresh broker balance for the UI.
             if tick_count % BALANCE_POLL_INTERVAL == 0:
-                await _poll_balance(bot.id, adapter)
+                await _poll_balance(bot, adapter)
 
             # Fetch broker state once per tick for all symbols to use in reconciliation
             # and risk checks. Catches "orphaned" trades if the backend crashed.
@@ -312,7 +312,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
             pass
 
 
-async def _poll_balance(bot_id: str, adapter) -> None:
+async def _poll_balance(bot: Bot, adapter) -> None:
     """Refresh cached broker balance for the UI. Best-effort — silent on failure.
 
     On the first successful read for a bot, snapshot the balance into the bot
@@ -322,23 +322,31 @@ async def _poll_balance(bot_id: str, adapter) -> None:
     try:
         balances = await adapter.get_balance()
     except Exception as e:  # noqa: BLE001
-        log.warning("balance poll failed bot=%s: %s", bot_id, e)
+        log.warning("balance poll failed bot=%s: %s", bot.id, e)
         return
     if not balances:
         return
     b = balances[0]
+    
+    # Use virtual balance for allocation-aware bots
+    effective_balance = b.available
+    if bot.allocation:
+        from app.execution import contracts as contracts_svc
+        summary = contracts_svc.summary(bot.id)
+        effective_balance = bot.allocation + summary["realized_pnl"]
+
     from app.core.time import now_epoch_ms
     from app.bots import service as bot_service
-    get_runtime_manager().cache_balance(bot_id, {
+    get_runtime_manager().cache_balance(bot.id, {
         "currency": b.currency,
-        "available": b.available,
+        "available": effective_balance,
         "total": b.total,
         "ts_ms": now_epoch_ms(),
     })
     try:
-        if bot_service.snapshot_starting_balance(bot_id, b.available, b.currency):
+        if bot_service.snapshot_starting_balance(bot.id, effective_balance, b.currency):
             log.info("snapshotted starting balance bot=%s amount=%.2f %s",
-                     bot_id, b.available, b.currency)
+                     bot.id, effective_balance, b.currency)
     except Exception:  # noqa: BLE001
         pass
     # Append to the persisted balance history so we can render real equity
@@ -346,7 +354,7 @@ async def _poll_balance(bot_id: str, adapter) -> None:
     try:
         from app.execution import balance_history
         balance_history.record(
-            bot_id=bot_id, balance=b.available,
+            bot_id=bot.id, balance=effective_balance,
             currency=b.currency, source="poll",
         )
     except Exception:  # noqa: BLE001
