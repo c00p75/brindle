@@ -350,12 +350,12 @@ async def _poll_balance(bot: Bot, adapter) -> None:
         "total": b.total,
         "ts_ms": now_epoch_ms(),
     })
-    try:
+    # For allocation-aware bots, the "starting balance" is conceptually the 
+    # allocation itself. We only snapshot for real-balance bots.
+    if not bot.allocation:
         if bot_service.snapshot_starting_balance(bot.id, effective_balance, b.currency):
-            log.info("snapshotted starting balance bot=%s amount=%.2f %s",
+            log.info("bot=%s snapshotted starting balance %.2f %s", 
                      bot.id, effective_balance, b.currency)
-    except Exception:  # noqa: BLE001
-        pass
     # Append to the persisted balance history so we can render real equity
     # curves and drawdown across time, not just whatever's in memory.
     try:
@@ -469,16 +469,18 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
         current = bot.allocation + summary["realized_pnl"]
 
     # 1) Daily-loss check: compare current balance to a "starting" balance.
-    #    Prefer the bot's persistent baseline (set on first balance read);
-    #    fall back to the oldest snapshot in the last 24h window.
-    start_amt, _, start_ts = bot_service.get_starting_balance(bot.id)
-    if start_amt is None:
-        # Use the earliest snapshot in the current run window (since last start)
-        # as a proxy baseline until the first official poll completes.
-        # This prevents looking back at huge balances from 24h ago.
-        lookback_ts = max(now_epoch_ms() - 24 * 3_600_000, bot.updated_at_ms)
-        recent = balance_history.history(bot_id=bot.id, since_ms=lookback_ts, max_points=2000)
-        start_amt = float(recent[0]["balance"]) if recent else current
+    #    For allocation bots, the baseline is always the allocation itself.
+    #    For real-balance bots, we use the persisted snapshot or 24h fallback.
+    if bot.allocation:
+        start_amt = bot.allocation
+    else:
+        start_amt, _, start_ts = bot_service.get_starting_balance(bot.id)
+        if start_amt is None:
+            # Use the earliest snapshot in the current run window (since last start)
+            # as a proxy baseline until the first official poll completes.
+            lookback_ts = max(now_epoch_ms() - 24 * 3_600_000, bot.updated_at_ms)
+            recent = balance_history.history(bot_id=bot.id, since_ms=lookback_ts, max_points=2000)
+            start_amt = float(recent[0]["balance"]) if recent else current
 
     daily_loss = max(0.0, start_amt - current)
     if cfg.risk.max_daily_loss > 0 and daily_loss >= cfg.risk.max_daily_loss:
