@@ -210,7 +210,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 effective_balance = 0.0
                 if bot.allocation:
                     from app.execution import contracts as contracts_svc
-                    pnl = contracts_svc.summary(bot.id)["realized_pnl"]
+                    pnl = contracts_svc.summary(bot.id, since_ms=bot.starting_balance_at_ms)["realized_pnl"]
                     effective_balance = bot.allocation + pnl
                 else:
                     balance = get_runtime_manager().get_cached_balance(bot.id)
@@ -332,7 +332,7 @@ async def _poll_balance(bot: Bot, adapter) -> None:
     effective_balance = b.available
     if bot.allocation:
         from app.execution import contracts as contracts_svc
-        summary = contracts_svc.summary(bot.id)
+        summary = contracts_svc.summary(bot.id, since_ms=bot.starting_balance_at_ms)
         effective_balance = bot.allocation + summary["realized_pnl"]
 
     from app.core.time import now_epoch_ms
@@ -405,7 +405,8 @@ def _loss_streak_breached(bot: Bot, cfg: BotConfig) -> bool:
     from app.execution import contracts as contracts_svc
 
     # Fetch enough recent contracts to evaluate the streak (settled only).
-    recent = contracts_svc.list_recent(bot.id, limit=limit + 5)
+    # Limited to the current run to avoid legacy streaks.
+    recent = contracts_svc.list_recent(bot.id, limit=limit + 5, since_ms=bot.starting_balance_at_ms)
     settled = [c for c in recent if c.get("status") in ("won", "lost")]
     if len(settled) < limit:
         return False  # not enough data yet
@@ -459,11 +460,13 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
     # 1) Daily-loss check: compare current balance to a "starting" balance.
     #    Prefer the bot's persistent baseline (set on first balance read);
     #    fall back to the oldest snapshot in the last 24h window.
-    start_amt, _, _ = bot_service.get_starting_balance(bot.id)
+    start_amt, _, start_ts = bot_service.get_starting_balance(bot.id)
     if start_amt is None:
-        # Use the earliest snapshot in the last 24h as a proxy baseline
-        day_ago = now_epoch_ms() - 24 * 3_600_000
-        recent = balance_history.history(bot_id=bot.id, since_ms=day_ago, max_points=2000)
+        # Use the earliest snapshot in the current run window (since last start)
+        # as a proxy baseline until the first official poll completes.
+        # This prevents looking back at huge balances from 24h ago.
+        lookback_ts = max(now_epoch_ms() - 24 * 3_600_000, bot.updated_at_ms)
+        recent = balance_history.history(bot_id=bot.id, since_ms=lookback_ts, max_points=2000)
         start_amt = float(recent[0]["balance"]) if recent else current
 
     daily_loss = max(0.0, start_amt - current)
@@ -474,7 +477,7 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
     # 2) Drawdown-from-peak check: max_drawdown_pct is enforced here, not just
     #    in the schema. Peak is the highest balance observed for this bot.
     if not breached and cfg.risk.max_drawdown_pct > 0:
-        all_history = balance_history.history(bot_id=bot.id, max_points=10_000)
+        all_history = balance_history.history(bot_id=bot.id, max_points=10_000, since_ms=bot.starting_balance_at_ms)
         if all_history:
             peak = max(float(h["balance"]) for h in all_history)
             if peak > 0:
@@ -509,7 +512,7 @@ def _allocation_depleted(bot: Bot, cfg: BotConfig) -> bool:
         return False
 
     from app.execution import contracts as contracts_svc
-    summary = contracts_svc.summary(bot.id)
+    summary = contracts_svc.summary(bot.id, since_ms=bot.starting_balance_at_ms)
     pnl = summary["realized_pnl"]
     effective = bot.allocation + pnl
 
@@ -568,7 +571,7 @@ async def _build_portfolio_snapshot(
     equity = 0.0
     day_pnl = 0.0
     if bot.allocation:
-        summ = contracts_svc.summary(bot.id)
+        summ = contracts_svc.summary(bot.id, since_ms=bot.starting_balance_at_ms)
         equity = bot.allocation + summ["realized_pnl"]
         day_pnl = summ["realized_pnl"]
     else:

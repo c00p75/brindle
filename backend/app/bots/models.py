@@ -46,3 +46,6 @@ class Bot(BaseModel):
     allocation: float | None = None
     created_at_ms: int
     updated_at_ms: int
+    starting_balance: float | None = None
+    starting_balance_currency: str | None = None
+    starting_balance_at_ms: int | None = None

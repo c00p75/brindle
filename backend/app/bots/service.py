@@ -22,6 +22,9 @@ def _row_to_bot(row: BotRow) -> Bot:
         allocation=row.allocation,
         created_at_ms=row.created_at_ms,
         updated_at_ms=row.updated_at_ms,
+        starting_balance=row.starting_balance,
+        starting_balance_currency=row.starting_balance_currency,
+        starting_balance_at_ms=row.starting_balance_at_ms,
     )
 
 
@@ -204,6 +207,12 @@ def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
 
     # Ensure state reflects an applied config (DRAFT → READY) before transitioning.
     refreshed = refresh_state_from_config(current)
+    
+    # If starting fresh (not resuming from PAUSED), reset the baseline so 
+    # drawdown/PnL tracking starts from today's balance.
+    if current.state != BotState.PAUSED:
+        reset_starting_balance(bot_id)
+
     bot = _set_state(
         bot_id,
         BotState.RUNNING,
