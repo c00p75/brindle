@@ -39,7 +39,7 @@ def validate_bot_config(cfg: BotConfig, bot_allocation: float | None = None) -> 
                 f"is much larger than allocation (${bot_allocation:.0f})"
             )
 
-        stake_est = _estimate_intent_notional(cfg, bot_allocation=allocation)
+        stake_est = _estimate_intent_notional(cfg, bot_allocation=bot_allocation)
         if stake_est is not None and stake_est > cfg.risk.max_position_notional:
             errors.append(
                 f"strategy will produce intents of ~${stake_est:.0f}, "
