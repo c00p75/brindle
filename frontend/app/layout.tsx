@@ -6,7 +6,7 @@ export const metadata = {
   title: "Brindle Platform",
   description: "Paper-trading-first trading bot platform",
   icons: {
-    icon: "/brindle.png",
+    icon: "/favicon.ico",
   },
 };
 

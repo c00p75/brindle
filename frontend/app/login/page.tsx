@@ -42,7 +42,7 @@ export default function LoginPage() {
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
-          <img src="/brindle-transaprent.png" alt="Brindle" width="36" height="36" style={{ borderRadius: 6 }} />
+          <img src="/logo.png" alt="Brindle" width="36" height="36" style={{ borderRadius: 6 }} />
           <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>Brindle</span>
         </div>
 
