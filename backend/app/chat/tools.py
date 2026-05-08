@@ -21,11 +21,25 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_bot",
-            "description": "Get detailed info about a specific trading bot",
+            "description": "Get the current state and metadata of a specific trading bot (id, name, state, allocation, active version number). Does NOT return the full strategy configuration — use get_bot_config for strategy params and risk limits.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "bot_id": {"type": "string", "description": "Bot ID (e.g. bot_abc123)"},
+                },
+                "required": ["bot_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_bot_config",
+            "description": "Get the current active configuration for a bot (strategy params, risk limits, symbols, etc.)",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bot_id": {"type": "string", "description": "Bot ID to get config for"},
                 },
                 "required": ["bot_id"],
             },
@@ -453,6 +467,14 @@ async def execute_tool(name: str, args: dict, user) -> dict:
             if bot is None:
                 return {"error": f"Bot {args['bot_id']} not found"}
             return bot_service.refresh_state_from_config(bot).model_dump()
+
+        elif name == "get_bot_config":
+            from app.configs import service as config_service
+            bot_id = args["bot_id"]
+            av = config_service.active_version(bot_id)
+            if av is None:
+                return {"error": f"No active configuration found for bot {bot_id}"}
+            return av.config.model_dump()
 
         elif name == "start_bot":
             bot_id = args["bot_id"]

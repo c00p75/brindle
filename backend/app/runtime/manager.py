@@ -160,6 +160,13 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
 
     try:
         while True:
+            # Refresh bot state from DB to ensure allocation changes or 
+            # baseline resets are respected in the current tick.
+            from app.bots import service as bot_service
+            fresh_bot = bot_service.get(bot.id)
+            if fresh_bot:
+                bot = fresh_bot
+
             tick_count += 1
             # Every CONTRACT_POLL_INTERVAL ticks, sweep open contracts for settlement.
             if tick_count % CONTRACT_POLL_INTERVAL == 0:
@@ -460,6 +467,7 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
     # 1) Daily-loss check: compare current balance to a "starting" balance.
     #    Prefer the bot's persistent baseline (set on first balance read);
     #    fall back to the oldest snapshot in the last 24h window.
+    from app.bots import service as bot_service
     start_amt, _, start_ts = bot_service.get_starting_balance(bot.id)
     if start_amt is None:
         # Use the earliest snapshot in the current run window (since last start)

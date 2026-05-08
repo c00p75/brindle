@@ -179,7 +179,12 @@ async def process_message(
         s.flush()
 
     # Prep messages for LLM
-    llm_messages: list[dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
+    from app.core.time import now_epoch_ms
+    from datetime import datetime
+    now_dt = datetime.fromtimestamp(now_epoch_ms() / 1000.0)
+    system_prompt = _SYSTEM_PROMPT + f"\n\nCURRENT CONTEXT:\n- Current Time: {now_dt.strftime('%Y-%m-%d %H:%M:%S')} UTC\n- Current Timestamp MS: {now_epoch_ms()}\n"
+    
+    llm_messages: list[dict] = [{"role": "system", "content": system_prompt}]
     for r in hist_rows:
         m = {"role": r.role, "content": r.content}
         if r.tool_calls: m["tool_calls"] = r.tool_calls
