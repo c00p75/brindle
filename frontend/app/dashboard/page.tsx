@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import Navigation from "@/components/Navigation";
 import { api } from "@/lib/api";
+import BrokerBalancesCard from "@/components/BrokerBalancesCard";
 import type { Alert, Bot, BrokerAccountBalance } from "@/lib/types";
 
 export default function DashboardPage() {
@@ -22,6 +23,7 @@ function Dashboard() {
   const [bots, setBots] = useState<Bot[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [brokerBalances, setBrokerBalances] = useState<BrokerAccountBalance[]>([]);
+  const [loadingBalances, setLoadingBalances] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,6 +39,8 @@ function Dashboard() {
         setBrokerBalances(bb);
       } catch (e) {
         setErr(e instanceof Error ? e.message : "failed to load");
+      } finally {
+        setLoadingBalances(false);
       }
     })();
   }, []);
@@ -64,37 +68,8 @@ function Dashboard() {
 
       {err && <p className="error" style={{ marginBottom: 20 }}>{err}</p>}
 
-      {/* Broker Balances row */}
-      {brokerBalances.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 12 }}>
-            Broker Accounts
-          </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-            {brokerBalances.map((bb, i) => (
-              <div key={i} className="card" style={{ borderLeft: "4px solid #4f46e5" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#aaaaaa", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {bb.broker_type} ({bb.environment})
-                  </div>
-                  <span className={`pill ${bb.error ? "error" : "running"}`} style={{ fontSize: 9 }}>
-                    {bb.error ? "Error" : "Connected"}
-                  </span>
-                </div>
-                <div className="stat-number" style={{ color: bb.error ? "#cc2626" : "#4f46e5", fontSize: 24 }}>
-                  {bb.available != null 
-                    ? `${bb.currency === "USD" ? "$" : ""}${bb.available.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : bb.error ? "N/A" : "—"}
-                </div>
-                <div style={{ fontSize: 10, color: "#aaaaaa", marginTop: 4, fontFamily: "monospace" }}>
-                  {bb.account_id}
-                </div>
-                {bb.error && <div style={{ fontSize: 9, color: "#cc2626", marginTop: 4 }}>{bb.error}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Broker Balances Card */}
+      <BrokerBalancesCard balances={brokerBalances} loading={loadingBalances} />
 
       {/* Stats row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 24 }}>
