@@ -42,10 +42,7 @@ export default function LoginPage() {
       }}>
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 48 }}>
-          <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-            <rect width="36" height="36" rx="6" fill="#4f46e5"/>
-            <path d="M7 26 L14 14 L19 20 L26 9" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src="/brindle-transaprent.png" alt="Brindle" width="36" height="36" style={{ borderRadius: 6 }} />
           <span style={{ fontWeight: 800, fontSize: 20, color: "#fff", letterSpacing: "-0.02em" }}>Brindle</span>
         </div>
 

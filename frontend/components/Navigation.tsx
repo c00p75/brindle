@@ -33,10 +33,7 @@ export default function Navigation() {
       <div style={navInner}>
         {/* Logo */}
         <Link href="/dashboard" style={logoLink}>
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-            <rect width="28" height="28" rx="4" fill="#4f46e5"/>
-            <path d="M6 20 L11 12 L15 16 L20 8" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <img src="/brindle-transaprent.png" alt="Brindle" width="28" height="28" style={{ borderRadius: 4 }} />
           <span style={{ fontWeight: 800, fontSize: 16, color: "#0e0e0e", letterSpacing: "-0.02em" }}>
             Brindle
           </span>

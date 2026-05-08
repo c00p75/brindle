@@ -5,6 +5,9 @@ import ChatBot from "../components/ChatBot";
 export const metadata = {
   title: "Brindle Platform",
   description: "Paper-trading-first trading bot platform",
+  icons: {
+    icon: "/brindle.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
