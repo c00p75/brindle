@@ -309,11 +309,13 @@ function BotsList() {
                         ? `${summaries[b.id].won_count} / ${summaries[b.id].lost_count}` + (summaries[b.id].open_count > 0 ? ` (${summaries[b.id].open_count} open)` : "")
                         : <span style={{ color: "#d6dadc" }}>—</span>}
                     </td>
-                    <td style={{ color: "#686868", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={b.owner_email}>
+                    <td style={{ color: "#686868", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 160 }} title={b.owner_email}>
                       {b.owner_email}
                     </td>
-                    <td style={{ color: "#aaaaaa", fontSize: 12, whiteSpace: "nowrap" }}>{new Date(b.updated_at_ms).toLocaleString()}</td>
-                    <td style={{ textAlign: "right" }}>
+                    <td style={{ color: "#aaaaaa", fontSize: 12, whiteSpace: "nowrap" }}>
+                      {new Date(b.updated_at_ms).toLocaleDateString([], { day: '2-digit', month: '2-digit', year: 'numeric' })}, {new Date(b.updated_at_ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </td>
+                    <td style={{ textAlign: "right", paddingRight: 20 }}>
                       <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                         {can(user?.role, "config:draft") && (
                           <Link href={`/bots/${b.id}/config`} className="btn ghost"
