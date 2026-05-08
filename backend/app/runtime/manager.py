@@ -452,7 +452,7 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
     yet (e.g. brand-new bot with one snapshot).
     """
     from app.bots import service as bot_service
-    from app.execution import balance_history
+    from app.execution import balance_history, contracts as contracts_svc
     from app.core.time import now_epoch_ms
 
     breached = False
@@ -462,12 +462,15 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
     latest = balance_history.latest(bot.id)
     if latest is None:
         return False
+    
     current = float(latest["balance"])
+    if bot.allocation:
+        summary = contracts_svc.summary(bot.id, since_ms=bot.starting_balance_at_ms)
+        current = bot.allocation + summary["realized_pnl"]
 
     # 1) Daily-loss check: compare current balance to a "starting" balance.
     #    Prefer the bot's persistent baseline (set on first balance read);
     #    fall back to the oldest snapshot in the last 24h window.
-    from app.bots import service as bot_service
     start_amt, _, start_ts = bot_service.get_starting_balance(bot.id)
     if start_amt is None:
         # Use the earliest snapshot in the current run window (since last start)
