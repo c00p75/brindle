@@ -249,93 +249,97 @@ function BotsList() {
               </button>
             </div>
           </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Bot</th>
-                <th>State</th>
-                <th>Allocation</th>
-                <th>Active config</th>
-                <th>P&L</th>
-                <th>Win/loss</th>
-                <th>Owner</th>
-                <th>Last updated</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredAndSortedBots.map((b) => (
-                <tr key={b.id}>
-                  <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{
-                        width: 7, height: 7, borderRadius: "50%", flexShrink: 0, display: "inline-block",
-                        background: b.state === "running" ? "#008265" : b.state === "error" || b.state === "halted" ? "#cc2626" : "#d6dadc",
-                        boxShadow: b.state === "running" ? "0 0 0 3px rgba(0,130,101,0.15)" : "none",
-                      }} />
-                      <div>
-                        <Link href={`/bots/${b.id}`} style={{ fontWeight: 700, color: "#0e0e0e", display: "block" }}>
-                          {b.name}
-                        </Link>
-                        <span style={{ fontSize: 11, color: "#d6dadc", fontFamily: "monospace" }}>{b.id}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td><span className={`pill ${b.state}`}>{b.state}</span></td>
-                  <td>
-                    {b.allocation 
-                      ? <span style={{ fontWeight: 600, color: "#4f46e5" }}>${b.allocation.toFixed(2)}</span>
-                      : <span style={{ color: "#94a3b8", fontSize: 12 }}>Full account</span>
-                    }
-                  </td>
-                  <td>
-                    {b.active_config_version
-                      ? <span style={{ background: "#f2f3f4", color: "#555", padding: "3px 8px", borderRadius: 3, fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}>
-                          v{b.active_config_version}
-                        </span>
-                      : <span style={{ color: "#d6dadc" }}>—</span>
-                    }
-                  </td>
-                  <td style={{ fontVariantNumeric: "tabular-nums" }}>
-                    {summaries[b.id]
-                      ? <span style={{ color: summaries[b.id].realized_pnl >= 0 ? "#008265" : "#cc2626", fontWeight: 600 }}>
-                          ${summaries[b.id].realized_pnl >= 0 ? "+" : ""}{summaries[b.id].realized_pnl.toFixed(2)}
-                        </span>
-                      : <span style={{ color: "#d6dadc" }}>—</span>}
-                  </td>
-                  <td style={{ fontSize: 12, color: "#555", fontVariantNumeric: "tabular-nums" }}>
-                    {summaries[b.id]
-                      ? `${summaries[b.id].won_count} / ${summaries[b.id].lost_count}` + (summaries[b.id].open_count > 0 ? ` (${summaries[b.id].open_count} open)` : "")
-                      : <span style={{ color: "#d6dadc" }}>—</span>}
-                  </td>
-                  <td style={{ color: "#686868", fontSize: 13 }}>{b.owner_email}</td>
-                  <td style={{ color: "#aaaaaa", fontSize: 12 }}>{new Date(b.updated_at_ms).toLocaleString()}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      {can(user?.role, "config:draft") && (
-                        <Link href={`/bots/${b.id}/config`} className="btn ghost"
-                          style={{ textDecoration: "none", fontSize: 12, padding: "5px 10px" }}>
-                          Config
-                        </Link>
-                      )}
-                      {can(user?.role, "bot:start") && b.state !== "running" && b.active_config_version && (
-                        <button className="btn secondary" style={{ fontSize: 12, padding: "5px 10px" }}
-                          onClick={() => action(b.id, api.startBot)}>Start</button>
-                      )}
-                      {can(user?.role, "bot:stop") && b.state === "running" && (
-                        <button className="btn ghost" style={{ fontSize: 12, padding: "5px 10px" }}
-                          onClick={() => action(b.id, api.pauseBot)}>Pause</button>
-                      )}
-                      {can(user?.role, "bot:stop") && (b.state === "running" || b.state === "paused") && (
-                        <button className="btn danger" style={{ fontSize: 12, padding: "5px 10px" }}
-                          onClick={() => action(b.id, api.stopBot)}>Stop</button>
-                      )}
-                    </div>
-                  </td>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ minWidth: 1000 }}>
+              <thead>
+                <tr>
+                  <th>Bot</th>
+                  <th>State</th>
+                  <th>Allocation</th>
+                  <th>Active config</th>
+                  <th>P&L</th>
+                  <th>Win/loss</th>
+                  <th>Owner</th>
+                  <th>Last updated</th>
+                  <th style={{ textAlign: "right" }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredAndSortedBots.map((b) => (
+                  <tr key={b.id}>
+                    <td>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{
+                          width: 7, height: 7, borderRadius: "50%", flexShrink: 0, display: "inline-block",
+                          background: b.state === "running" ? "#008265" : b.state === "error" || b.state === "halted" ? "#cc2626" : "#d6dadc",
+                          boxShadow: b.state === "running" ? "0 0 0 3px rgba(0,130,101,0.15)" : "none",
+                        }} />
+                        <div>
+                          <Link href={`/bots/${b.id}`} style={{ fontWeight: 700, color: "#0e0e0e", display: "block" }}>
+                            {b.name}
+                          </Link>
+                          <span style={{ fontSize: 11, color: "#d6dadc", fontFamily: "monospace" }}>{b.id}</span>
+                        </div>
+                      </div>
+                    </td>
+                    <td><span className={`pill ${b.state}`}>{b.state}</span></td>
+                    <td>
+                      {b.allocation 
+                        ? <span style={{ fontWeight: 600, color: "#4f46e5" }}>${b.allocation.toFixed(2)}</span>
+                        : <span style={{ color: "#94a3b8", fontSize: 12 }}>Full account</span>
+                      }
+                    </td>
+                    <td>
+                      {b.active_config_version
+                        ? <span style={{ background: "#f2f3f4", color: "#555", padding: "3px 8px", borderRadius: 3, fontSize: 12, fontWeight: 700, fontFamily: "monospace" }}>
+                            v{b.active_config_version}
+                          </span>
+                        : <span style={{ color: "#d6dadc" }}>—</span>
+                      }
+                    </td>
+                    <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                      {summaries[b.id]
+                        ? <span style={{ color: summaries[b.id].realized_pnl >= 0 ? "#008265" : "#cc2626", fontWeight: 600 }}>
+                            ${summaries[b.id].realized_pnl >= 0 ? "+" : ""}{summaries[b.id].realized_pnl.toFixed(2)}
+                          </span>
+                        : <span style={{ color: "#d6dadc" }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: 12, color: "#555", fontVariantNumeric: "tabular-nums" }}>
+                      {summaries[b.id]
+                        ? `${summaries[b.id].won_count} / ${summaries[b.id].lost_count}` + (summaries[b.id].open_count > 0 ? ` (${summaries[b.id].open_count} open)` : "")
+                        : <span style={{ color: "#d6dadc" }}>—</span>}
+                    </td>
+                    <td style={{ color: "#686868", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={b.owner_email}>
+                      {b.owner_email}
+                    </td>
+                    <td style={{ color: "#aaaaaa", fontSize: 12, whiteSpace: "nowrap" }}>{new Date(b.updated_at_ms).toLocaleString()}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                        {can(user?.role, "config:draft") && (
+                          <Link href={`/bots/${b.id}/config`} className="btn ghost"
+                            style={{ textDecoration: "none", fontSize: 12, padding: "5px 10px" }}>
+                            Config
+                          </Link>
+                        )}
+                        {can(user?.role, "bot:start") && b.state !== "running" && b.active_config_version && (
+                          <button className="btn secondary" style={{ fontSize: 12, padding: "5px 10px" }}
+                            onClick={() => action(b.id, api.startBot)}>Start</button>
+                        )}
+                        {can(user?.role, "bot:stop") && b.state === "running" && (
+                          <button className="btn ghost" style={{ fontSize: 12, padding: "5px 10px" }}
+                            onClick={() => action(b.id, api.pauseBot)}>Pause</button>
+                        )}
+                        {can(user?.role, "bot:stop") && (b.state === "running" || b.state === "paused") && (
+                          <button className="btn danger" style={{ fontSize: 12, padding: "5px 10px" }}
+                            onClick={() => action(b.id, api.stopBot)}>Stop</button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </>
