@@ -204,6 +204,15 @@ export interface BrokerBalance {
   starting_balance_at_ms: number | null;
 }
 
+export interface BrokerAccountBalance {
+  broker_type: string;
+  account_id: string;
+  environment: string;
+  available: number | null;
+  currency: string | null;
+  error: string | null;
+}
+
 export interface BacktestRequest {
   strategy_id: string;
   params: Record<string, unknown>;

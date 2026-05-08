@@ -20,6 +20,7 @@ import type {
   TOTPSetupResponse,
   TokenResponse,
   UserPublic,
+  BrokerAccountBalance,
 } from "./types";
 
 const TOKEN_KEY = "tb.token";
@@ -286,5 +287,8 @@ export const api = {
   },
   deleteChatSession(sessionId: string): Promise<void> {
     return request(`/api/chat/sessions/${sessionId}`, { method: "DELETE" });
+  },
+  listBrokerBalances(): Promise<BrokerAccountBalance[]> {
+    return request("/api/brokers/balances");
   },
 };
