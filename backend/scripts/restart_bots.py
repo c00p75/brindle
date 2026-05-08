@@ -12,7 +12,6 @@ load_dotenv()
 from app.bots import service as bot_service
 from app.configs import service as config_service
 from app.runtime.manager import get_runtime_manager
-from app.db.engine import init_db
 
 async def fix_and_restart(bot_id: str, new_exposure: float = None):
     print(f"--- Processing {bot_id} ---")
@@ -26,10 +25,30 @@ async def fix_and_restart(bot_id: str, new_exposure: float = None):
             cfg.risk.max_total_exposure = new_exposure
             # Create a new version and apply it
             try:
-                new_v = config_service.create_draft(bot_id, cfg, created_by="system@brindle.ai")
-                config_service.validate(bot_id, new_v.version)
-                config_service.approve(bot_id, new_v.version, approved_by="system@brindle.ai")
-                config_service.apply(bot_id, new_v.version)
+                new_v = config_service.create_draft(
+                    actor_email="system@brindle.ai",
+                    actor_role="admin",
+                    config=cfg
+                )
+                config_service.validate(
+                    actor_email="system@brindle.ai",
+                    actor_role="admin",
+                    bot_id=bot_id,
+                    version=new_v.version
+                )
+                config_service.approve(
+                    actor_email="system@brindle.ai",
+                    actor_role="admin",
+                    bot_id=bot_id,
+                    version=new_v.version
+                )
+                config_service.apply(
+                    actor_email="system@brindle.ai",
+                    actor_role="admin",
+                    bot_id=bot_id,
+                    version=new_v.version,
+                    typed_confirmation="APPLY RISK CHANGE"
+                )
                 print(f"Applied new config v{new_v.version}")
             except Exception as e:
                 print(f"Config update failed: {e}")
@@ -58,7 +77,6 @@ async def fix_and_restart(bot_id: str, new_exposure: float = None):
         print(f"Start failed: {e}")
 
 async def main():
-    # init_db() # Don't re-init, just use what's there
     # MM V1
     await fix_and_restart("bot_07ac123caaa1", new_exposure=500.0)
     # GRID V1
