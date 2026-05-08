@@ -184,26 +184,30 @@ def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
 
     # Check for existing drawdown breach in history before allowing start.
     # Prevents "zombie" pauses where a bot starts and immediately auto-pauses.
-    from app.execution import balance_history
-    history = balance_history.history(bot_id=bot_id, max_points=1000)
-    if history:
-        hwm = max(float(h["balance"]) for h in history)
-        if current.allocation:
-            from app.execution import contracts as contracts_svc
-            pnl = contracts_svc.summary(bot_id)["realized_pnl"]
-            equity = current.allocation + pnl
-        else:
-            # For non-allocation bots, we use the last recorded balance
-            equity = history[-1]["balance"]
-            
-        if hwm > 0:
-            dd_pct = (hwm - equity) / hwm * 100
-            limit = cv.config.risk.max_drawdown_pct
-            if dd_pct >= limit:
-                raise ValueError(
-                    f"cannot start: bot is in drawdown ({dd_pct:.1f}% >= {limit}% limit). "
-                    "Reset the baseline or adjust risk limits to continue."
-                )
+    # ONLY enforced when resuming from PAUSED. Fresh starts (READY/HALTED) 
+    # reset the baseline anyway.
+    if current.state == BotState.PAUSED:
+        from app.execution import balance_history
+        history = balance_history.history(bot_id=bot_id, max_points=1000)
+        if history:
+            hwm = max(float(h["balance"]) for h in history)
+            if current.allocation:
+                from app.execution import contracts as contracts_svc
+                # Use current run PnL for the drawdown check
+                pnl = contracts_svc.summary(bot_id, since_ms=current.starting_balance_at_ms)["realized_pnl"]
+                equity = current.allocation + pnl
+            else:
+                # For non-allocation bots, we use the last recorded balance
+                equity = history[-1]["balance"]
+                
+            if hwm > 0:
+                dd_pct = (hwm - equity) / hwm * 100
+                limit = cv.config.risk.max_drawdown_pct
+                if dd_pct >= limit:
+                    raise ValueError(
+                        f"cannot start: bot is in drawdown ({dd_pct:.1f}% >= {limit}% limit). "
+                        "Reset the baseline or adjust risk limits to continue."
+                    )
 
     # Ensure state reflects an applied config (DRAFT → READY) before transitioning.
     refreshed = refresh_state_from_config(current)
