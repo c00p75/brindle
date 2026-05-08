@@ -97,7 +97,9 @@ def snapshot_starting_balance(bot_id: str, amount: float, currency: str) -> bool
 
 
 def reset_starting_balance(bot_id: str) -> bool:
-    """Clear the snapshot so the next balance poll captures a new baseline."""
+    """Clear the snapshot so the next balance poll captures a new baseline.
+    Also clears historical balance snapshots to reset drawdown tracking.
+    """
     with session_scope() as s:
         row = s.get(BotRow, bot_id)
         if row is None:
@@ -105,6 +107,12 @@ def reset_starting_balance(bot_id: str) -> bool:
         row.starting_balance = None
         row.starting_balance_currency = None
         row.starting_balance_at_ms = None
+        
+        # Clear snapshots to reset RiskEngine HWM
+        from app.db.orm import BalanceSnapshotRow
+        from sqlalchemy import delete
+        s.execute(delete(BalanceSnapshotRow).where(BalanceSnapshotRow.bot_id == bot_id))
+        
         s.flush()
         return True
 
@@ -163,11 +171,37 @@ def refresh_state_from_config(bot: Bot) -> Bot:
 
 
 def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
-    if active_version(bot_id) is None:
+    cv = active_version(bot_id)
+    if cv is None:
         raise ValueError("cannot start: no applied config")
+    
     current = get(bot_id)
     if current is None:
         raise ValueError("bot not found")
+
+    # Check for existing drawdown breach in history before allowing start.
+    # Prevents "zombie" pauses where a bot starts and immediately auto-pauses.
+    from app.execution import balance_history
+    history = balance_history.history(bot_id=bot_id, max_points=1000)
+    if history:
+        hwm = max(float(h["balance"]) for h in history)
+        if current.allocation:
+            from app.execution import contracts as contracts_svc
+            pnl = contracts_svc.summary(bot_id)["realized_pnl"]
+            equity = current.allocation + pnl
+        else:
+            # For non-allocation bots, we use the last recorded balance
+            equity = history[-1]["balance"]
+            
+        if hwm > 0:
+            dd_pct = (hwm - equity) / hwm * 100
+            limit = cv.config.risk.max_drawdown_pct
+            if dd_pct >= limit:
+                raise ValueError(
+                    f"cannot start: bot is in drawdown ({dd_pct:.1f}% >= {limit}% limit). "
+                    "Reset the baseline or adjust risk limits to continue."
+                )
+
     # Ensure state reflects an applied config (DRAFT → READY) before transitioning.
     refreshed = refresh_state_from_config(current)
     bot = _set_state(
@@ -224,3 +258,24 @@ def archive(bot_id: str, actor_email: str, actor_role: str) -> Bot:
         resource_id=bot.id,
     )
     return bot
+def update(bot_id: str, *, name: str | None = None, allocation: float | None = None, 
+           actor_email: str, actor_role: str) -> Bot:
+    with session_scope() as s:
+        row = s.get(BotRow, bot_id)
+        if row is None:
+            raise ValueError("bot not found")
+            
+        old_allocation = row.allocation
+        if name is not None:
+            row.name = name
+        if allocation is not None:
+            row.allocation = allocation
+            
+        # If allocation changed, automatically reset baseline and history to 
+        # avoid false drawdown rejections.
+        if allocation != old_allocation:
+            reset_starting_balance(bot_id)
+            
+        row.updated_at_ms = now_epoch_ms()
+        s.flush()
+        return _row_to_bot(row)

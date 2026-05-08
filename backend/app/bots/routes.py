@@ -21,6 +21,11 @@ class CreateBotBody(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+class UpdateBotBody(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=80)
+    allocation: float | None = Field(None, ge=0)
+
+
 @router.get("")
 async def list_bots(_: User = Depends(require("bot:read"))) -> list[Bot]:
     bots = bot_service.list_bots()
@@ -43,6 +48,20 @@ async def get_bot(bot_id: str, _: User = Depends(require("bot:read"))) -> Bot:
     if bot is None:
         raise HTTPException(404, "bot not found")
     return bot_service.refresh_state_from_config(bot)
+
+
+@router.patch("/{bot_id}")
+async def update_bot(bot_id: str, body: UpdateBotBody, user: User = Depends(require("bot:edit"))) -> Bot:
+    try:
+        return bot_service.update(
+            bot_id,
+            name=body.name,
+            allocation=body.allocation,
+            actor_email=user.email,
+            actor_role=user.role.value,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/{bot_id}/start")
