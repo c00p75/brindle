@@ -1,9 +1,13 @@
 import asyncio
 import os
 import sys
+from dotenv import load_dotenv
 
 # Ensure app is importable
 sys.path.append(os.getcwd())
+
+# Load environment variables (DATABASE_URL etc)
+load_dotenv()
 
 from app.bots import service as bot_service
 from app.configs import service as config_service
@@ -21,11 +25,16 @@ async def fix_and_restart(bot_id: str, new_exposure: float = None):
             cfg = av.config
             cfg.risk.max_total_exposure = new_exposure
             # Create a new version and apply it
-            new_v = config_service.create_draft(bot_id, cfg, created_by="system@brindle.ai")
-            config_service.validate(bot_id, new_v.version)
-            config_service.approve(bot_id, new_v.version, approved_by="system@brindle.ai")
-            config_service.apply(bot_id, new_v.version)
-            print(f"Applied new config v{new_v.version}")
+            try:
+                new_v = config_service.create_draft(bot_id, cfg, created_by="system@brindle.ai")
+                config_service.validate(bot_id, new_v.version)
+                config_service.approve(bot_id, new_v.version, approved_by="system@brindle.ai")
+                config_service.apply(bot_id, new_v.version)
+                print(f"Applied new config v{new_v.version}")
+            except Exception as e:
+                print(f"Config update failed: {e}")
+        else:
+            print(f"No active config found for {bot_id}")
 
     # 2. Reset baseline (for VOL BREAKOUT and others for safety)
     print(f"Resetting baseline for {bot_id}...")
@@ -49,7 +58,7 @@ async def fix_and_restart(bot_id: str, new_exposure: float = None):
         print(f"Start failed: {e}")
 
 async def main():
-    init_db()
+    # init_db() # Don't re-init, just use what's there
     # MM V1
     await fix_and_restart("bot_07ac123caaa1", new_exposure=500.0)
     # GRID V1
