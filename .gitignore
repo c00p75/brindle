@@ -9,7 +9,7 @@ __pycache__/
 backend/.env
 backend/.env.local
 backend/data/
-backend/*.db
+**/*.db
 backend/*.db-journal
 
 # Node / Next
