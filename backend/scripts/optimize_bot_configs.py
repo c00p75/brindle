@@ -22,6 +22,10 @@ import os
 # Add parent dir to path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Load .env BEFORE importing app modules (they need DATABASE_URL)
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.bots import service as bot_service
 from app.bots.models import BotState
 from app.configs import service as config_service
@@ -226,21 +230,26 @@ def optimize_bot(bot, dry_run: bool = False) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Optimize all bot configs")
     parser.add_argument("--dry-run", action="store_true", help="Show what would change without applying")
+    parser.add_argument("--all", action="store_true", help="Optimize all bots (not just running)")
     args = parser.parse_args()
 
     bots = bot_service.list_bots()
-    running = [b for b in bots if b.state == BotState.RUNNING]
+    skip = {BotState.ARCHIVED, BotState.DRAFT}
+    if args.all:
+        targets = [b for b in bots if b.state not in skip]
+    else:
+        targets = [b for b in bots if b.state == BotState.RUNNING]
 
     print(f"\n{'='*60}")
     print(f"Bot Configuration Optimizer")
     print(f"{'='*60}")
-    print(f"Total bots: {len(bots)}, Running: {len(running)}")
+    print(f"Total bots: {len(bots)}, Targets: {len(targets)}")
     if args.dry_run:
         print("Mode: DRY RUN (no changes will be applied)")
     print(f"{'='*60}\n")
 
     changed = 0
-    for bot in running:
+    for bot in targets:
         try:
             if optimize_bot(bot, dry_run=args.dry_run):
                 changed += 1
@@ -248,7 +257,7 @@ def main():
             print(f"  ❌ {bot.name}: {e}")
 
     print(f"\n{'='*60}")
-    print(f"Summary: {changed}/{len(running)} bots {'would be ' if args.dry_run else ''}updated")
+    print(f"Summary: {changed}/{len(targets)} bots {'would be ' if args.dry_run else ''}updated")
     if not args.dry_run and changed > 0:
         print("⚡ Bots will pick up new configs on next tick (no restart needed)")
     print(f"{'='*60}\n")
