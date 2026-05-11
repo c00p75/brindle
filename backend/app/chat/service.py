@@ -1,15 +1,12 @@
 import json
+import re
+import traceback
+from datetime import datetime
 from sqlalchemy import select, delete
 from groq import AsyncGroq
 
 from app.auth.models import User
-from app.chat.tools import TOOLS, execute_tool
-from app.core.settings import get_settings
-
-
-
-from app.auth.models import User
-from app.chat.models import ChatMessage, ChatSession
+from app.chat.models import ChatMessage, ChatRequest, ChatResponse, ChatSession
 from app.chat.tools import TOOLS, WRITE_TOOLS, execute_tool
 from app.core.ids import new_id
 from app.core.settings import get_settings
@@ -179,8 +176,6 @@ async def process_message(
         s.flush()
 
     # Prep messages for LLM
-    from app.core.time import now_epoch_ms
-    from datetime import datetime
     now_dt = datetime.fromtimestamp(now_epoch_ms() / 1000.0)
     system_prompt = _SYSTEM_PROMPT + f"\n\nCURRENT CONTEXT:\n- Current Time: {now_dt.strftime('%Y-%m-%d %H:%M:%S')} UTC\n- Current Timestamp MS: {now_epoch_ms()}\n"
     
@@ -258,7 +253,6 @@ async def process_message(
                 
                 # If the LLM outputted "Buttons:" followed by a list, extract as buttons.
                 if "buttons:" in reply.lower():
-                    import re
                     parts = re.split(r"(?i)buttons:?\s*", reply, maxsplit=1)
                     if len(parts) > 1:
                         # Find all bullet points in the remainder
@@ -281,7 +275,6 @@ async def process_message(
 
         return "Processing limit hit.", session_id, actions_taken, entities, steps, []
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return (
             f"Assistant error: {e}",
