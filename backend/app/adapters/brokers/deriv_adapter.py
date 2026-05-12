@@ -83,12 +83,7 @@ class DerivAdapter:
     # ------------------------------------------------------------------
 
     async def _fetch_otp_url(self) -> str:
-        """Exchange (PAT, account_id) for an OTP-authenticated WebSocket URL.
-
-        Deriv's new platform issues a short-lived URL with `?otp=...` that
-        pre-authenticates the WebSocket connection — no `authorize` payload
-        needed afterwards.
-        """
+        """Exchange (PAT, account_id) for an OTP-authenticated WebSocket URL."""
         path = f"/trading/v1/options/accounts/{self._account_id}/otp"
         headers = {
             "Deriv-App-ID": self._app_id,
@@ -96,6 +91,11 @@ class DerivAdapter:
         }
         async with httpx.AsyncClient(base_url=_OTP_BASE, timeout=_REQUEST_TIMEOUT) as c:
             resp = await c.post(path, headers=headers)
+        
+        if resp.status_code == 404:
+            raise ConnectionError(f"Deriv Account Not Found ({self._account_id}). Please check your Account ID in Broker Config.")
+        if resp.status_code == 401:
+            raise ConnectionError("Deriv Authentication Failed. Please check your Personal Access Token (PAT).")
         if resp.status_code != 200:
             raise ConnectionError(
                 f"Deriv OTP fetch failed ({resp.status_code}): {resp.text[:200]}"
@@ -182,10 +182,6 @@ class DerivAdapter:
             self._pending.pop(req_id, None)
             raise
 
-    # ------------------------------------------------------------------
-    # Lifecycle
-    # ------------------------------------------------------------------
-
     async def connect(self) -> None:
         ws_url = await self._fetch_otp_url()
         self._ws = await websockets.connect(
@@ -200,6 +196,14 @@ class DerivAdapter:
             "deriv connected account=%s env=%s app_id=%s",
             self._account_id, self.config.environment, self._app_id,
         )
+        
+        # Re-subscribe to all active symbols after a reconnection
+        if self._subscriptions:
+            log.info("re-subscribing to %d symbols for account=%s", len(self._subscriptions), self._account_id)
+            for symbol in self._subscriptions:
+                native = self._mapper.to_native(symbol)
+                # Use _send which handles its own req_id and awaiting
+                asyncio.create_task(self._send({"ticks": native, "subscribe": 1}))
 
     async def close(self) -> None:
         self._connected = False

@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import asyncio
 import time
 from contextlib import asynccontextmanager
 
@@ -54,6 +55,8 @@ async def _resume_running_bots() -> None:
             try:
                 await mgr.start(bot)
                 log.info("auto-resumed bot=%s name=%s", bot.id, bot.name)
+                # Small stagger to avoid hitting broker rate limits on startup
+                await asyncio.sleep(2.0)
             except Exception as exc:  # noqa: BLE001
                 log.error("failed to auto-resume bot=%s: %s", bot.id, exc)
 

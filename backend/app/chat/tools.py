@@ -91,7 +91,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_alerts",
-            "description": "List alerts from the system",
+            "description": "List all system alerts, notifications, and error flags. Use this to find out why a bot stopped, what risk limits were hit, or to get a general system health check.",
             "parameters": {
                 "type": "object",
                 "properties": {
