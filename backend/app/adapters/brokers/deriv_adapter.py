@@ -376,7 +376,7 @@ class DerivAdapter:
                 "currency": "USD",
                 "duration": self._default_duration,
                 "duration_unit": self._default_duration_unit,
-                "symbol": native,
+                "underlying_symbol": native,
             })
         except Exception as exc:
             log.warning("deriv proposal error symbol=%s err=%s", intent.symbol, exc)
