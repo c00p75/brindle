@@ -364,20 +364,23 @@ class DerivAdapter:
 
         native = self._mapper.to_native(intent.symbol)
         contract_type = "CALL" if intent.side == Side.BUY else "PUT"
-        stake = round(float(intent.notional if intent.notional is not None else (intent.quantity or 10.0)), 2)
+        stake = float(intent.notional if intent.notional is not None else (intent.quantity or 10.0))
+        stake_str = "{:.2f}".format(stake)
 
         # Step 1: proposal — get a priced contract
         try:
-            proposal_resp = await self._send({
+            payload = {
                 "proposal": 1,
-                "amount": stake,
+                "amount": float(stake_str),
                 "basis": "stake",
                 "contract_type": contract_type,
                 "currency": "USD",
                 "duration": self._default_duration,
                 "duration_unit": self._default_duration_unit,
                 "underlying_symbol": native,
-            })
+            }
+            log.info("sending deriv proposal: %s", payload)
+            proposal_resp = await self._send(payload)
         except Exception as exc:
             log.warning("deriv proposal error symbol=%s err=%s", intent.symbol, exc)
             return ExecutionResult(
@@ -416,7 +419,9 @@ class DerivAdapter:
 
         # Step 2: buy — purchase the contract
         try:
-            buy_resp = await self._send({"buy": proposal_id, "price": stake})
+            buy_payload = {"buy": proposal_id, "price": float(stake_str)}
+            log.info("sending deriv buy: %s", buy_payload)
+            buy_resp = await self._send(buy_payload)
         except Exception as exc:
             log.warning("deriv buy error symbol=%s err=%s", intent.symbol, exc)
             return ExecutionResult(
