@@ -119,9 +119,38 @@ class LiveAdapterSource:
         return list(self._history.get(symbol, []))
 
     async def warm_up(self, symbol: str, n: int) -> None:
-        # For live sources, warm_up pre-fills by polling; strategies that
-        # need more history than n bars will emit no signal until ready.
-        # Delay between calls to avoid broker rate-limiting.
+        """Fetch n historical bars from the adapter to seed the strategy.
+        
+        If the adapter doesn't support history, it falls back to the old
+        one-by-one polling method.
+        """
+        get_hist = getattr(self._adapter, "get_history", None)
+        if get_hist:
+            try:
+                tickers = await get_hist(symbol, n)
+                for t in tickers:
+                    # Build bar logic (duplicated from next_bar for speed)
+                    mid = (t.bid + t.ask) / 2
+                    spread_half = (t.ask - t.bid) / 2
+                    last = self._last_price.get(symbol, mid)
+                    bar = Bar(
+                        symbol=symbol, ts_ms=t.ts_ms, open=last,
+                        high=max(last, mid) + spread_half,
+                        low=min(last, mid) - spread_half,
+                        close=mid, volume=0.0,
+                    )
+                    self._last_price[symbol] = mid
+                    self._last_ts[symbol] = t.ts_ms
+                    hist = self._history.setdefault(symbol, [])
+                    hist.append(bar)
+                    if len(hist) > self._history_cap:
+                        hist[:] = hist[-self._history_cap :]
+                log.info("warmed up %s with %d historical bars", symbol, len(tickers))
+                return
+            except Exception as e:
+                log.warning("warm_up history fetch failed for %s: %s", symbol, e)
+
+        # Fallback to polling
         for i in range(n):
             await self.next_bar(symbol)
             if i < n - 1:

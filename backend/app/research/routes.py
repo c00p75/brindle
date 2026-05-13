@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -53,6 +54,68 @@ async def list_backtests(_: User = Depends(require("bot:read"))) -> list[dict]:
             import json
             runs.append(json.loads(metrics_file.read_text()))
     return runs
+
+
+class WalkForwardBody(BaseModel):
+    strategy_id: str
+    symbol: str
+    bars: int = 1000
+    param_grid: list[dict]
+    n_folds: int = 4
+    train_ratio: float = 0.7
+    min_test_trades: int = 5
+
+
+@router.post("/walk_forward", response_model=dict)
+async def walk_forward_endpoint(
+    body: WalkForwardBody, _: User = Depends(require("bot:read"))
+) -> dict:
+    from app.research.deriv_history import fetch_historical_bars
+    from app.research.walk_forward import walk_forward
+
+    def _run() -> dict:
+        all_bars = fetch_historical_bars(body.symbol, body.bars)
+        report = walk_forward(
+            strategy_id=body.strategy_id,
+            symbol=body.symbol,
+            all_bars=all_bars,
+            param_grid=body.param_grid,
+            n_folds=body.n_folds,
+            train_ratio=body.train_ratio,
+            min_test_trades=body.min_test_trades,
+        )
+        folds = [
+            {
+                "fold_index": f.fold_index,
+                "train_bars": f.train_bars,
+                "test_bars": f.test_bars,
+                "best_train_params": f.best_train_params,
+                "train_win_rate": round(f.train_metrics.win_rate, 4),
+                "test_win_rate": round(f.test_metrics.win_rate, 4),
+                "train_pnl": round(f.train_metrics.total_realized_pnl, 4),
+                "test_pnl": round(f.test_metrics.total_realized_pnl, 4),
+                "train_trades": f.train_metrics.win_trades + f.train_metrics.loss_trades,
+                "test_trades": f.test_metrics.win_trades + f.test_metrics.loss_trades,
+            }
+            for f in report.folds
+        ]
+        return {
+            "verdict": report.verdict,
+            "strategy_id": report.strategy_id,
+            "symbol": report.symbol,
+            "total_bars": report.total_bars,
+            "mean_test_win_rate": round(report.mean_test_win_rate, 4),
+            "aggregate_z_score": round(report.aggregate_z_score, 4),
+            "per_fold_win_rate_std": round(report.per_fold_win_rate_std, 4),
+            "folds": folds,
+        }
+
+    try:
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, _run)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    return result
 
 
 @router.get("/observation_report", response_model=list[dict])

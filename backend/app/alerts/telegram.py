@@ -28,16 +28,7 @@ def _allowed_severities() -> set[str]:
     return {s.strip().lower() for s in raw.split(",") if s.strip()}
 
 
-def send(*, severity: str, source: str, message: str, bot_id: str | None = None) -> None:
-    if not _enabled():
-        return
-    if severity.lower() not in _allowed_severities():
-        return
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
-    icon = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}.get(severity.lower(), "•")
-    bot_line = f"\nBot: `{bot_id}`" if bot_id else ""
-    text = f"{icon} *{severity.upper()}* — {source}{bot_line}\n{message}"
+def _post(token: str, chat_id: str, text: str) -> None:
     try:
         r = httpx.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
@@ -48,3 +39,23 @@ def send(*, severity: str, source: str, message: str, bot_id: str | None = None)
             log.warning("telegram send failed status=%s body=%s", r.status_code, r.text[:200])
     except Exception as e:  # noqa: BLE001
         log.warning("telegram send error: %s", e)
+
+
+def send(*, severity: str, source: str, message: str, bot_id: str | None = None) -> None:
+    if not _enabled():
+        return
+    if severity.lower() not in _allowed_severities():
+        return
+    token = os.environ["TELEGRAM_BOT_TOKEN"]
+    chat_id = os.environ["TELEGRAM_CHAT_ID"]
+    icon = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}.get(severity.lower(), "•")
+    bot_line = f"\nBot: `{bot_id}`" if bot_id else ""
+    text = f"{icon} *{severity.upper()}* — {source}{bot_line}\n{message}"
+    _post(token, chat_id, text)
+
+
+def send_raw(text: str) -> None:
+    """Send arbitrary Markdown text — used for scheduled reports."""
+    if not _enabled():
+        return
+    _post(os.environ["TELEGRAM_BOT_TOKEN"], os.environ["TELEGRAM_CHAT_ID"], text)

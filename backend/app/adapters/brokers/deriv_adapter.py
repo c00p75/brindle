@@ -269,6 +269,31 @@ class DerivAdapter:
         
         raise ValueError(f"no tick data available for {symbol!r}")
 
+    async def get_history(self, symbol: str, count: int) -> list[Ticker]:
+        native = self._mapper.to_native(symbol)
+        resp = await self._send({
+            "ticks_history": native,
+            "count": count,
+            "end": "latest",
+            "style": "ticks",
+        })
+        if "error" in resp:
+            raise ValueError(f"deriv get_history error: {resp['error']['message']}")
+        
+        history = resp.get("history", {})
+        prices = history.get("prices", [])
+        times = history.get("times", [])
+        
+        out: list[Ticker] = []
+        for p, t in zip(prices, times):
+            out.append(Ticker(
+                symbol=symbol,
+                bid=float(p),
+                ask=float(p),
+                ts_ms=int(t) * 1000
+            ))
+        return out
+
     # ------------------------------------------------------------------
     # Account state
     # ------------------------------------------------------------------

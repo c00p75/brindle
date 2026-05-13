@@ -211,7 +211,23 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
 
                 bar = await source.next_bar(symbol)
                 if bar is None:
-                    continue  # transient fetch failure
+                    # Persistent fetch failure alert
+                    fail_count = getattr(source, "_fail_count", {}).get(symbol, 0) + 1
+                    if not hasattr(source, "_fail_count"):
+                        source._fail_count = {}
+                    source._fail_count[symbol] = fail_count
+                    
+                    if fail_count == 10: # Alert after ~10s of failures
+                        emit_alert(
+                            severity=Severity.CRITICAL,
+                            source="runtime",
+                            message=f"failed to fetch market data for {symbol} after 10 attempts — bot is blind",
+                            bot_id=bot.id,
+                        )
+                    continue
+                
+                if hasattr(source, "_fail_count"):
+                    source._fail_count[symbol] = 0 # reset on success
 
                 # Calculate effective balance for the strategy
                 effective_balance = 0.0
@@ -263,8 +279,19 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 portfolio = await _build_portfolio_snapshot(bot, adapter, broker_positions, cfg.symbols)
                 for intent in intents:
                     result = await exec_svc.execute(intent, portfolio, bar.close)
-                    if result.status.value == "rejected" and (result.reason or "").startswith("risk:"):
-                        consecutive_risk_rejects += 1
+                    if result.status.value == "rejected":
+                        if (result.reason or "").startswith("risk:"):
+                            consecutive_risk_rejects += 1
+                        else:
+                            # Adapter/Broker rejection (e.g. invalid duration, stake too low)
+                            emit_alert(
+                                severity=Severity.WARNING,
+                                source="runtime",
+                                message=f"order rejected by broker: {result.reason}",
+                                bot_id=bot.id,
+                                metadata={"intent": intent.model_dump() if hasattr(intent, "model_dump") else str(intent)}
+                            )
+                            consecutive_risk_rejects = 0
                     else:
                         consecutive_risk_rejects = 0
 

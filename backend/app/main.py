@@ -29,13 +29,225 @@ from app.runtime.manager import get_runtime_manager
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     configure_logging()
     init_db()
     seed_default_users()
     await _resume_running_bots()
+    monitor_task = asyncio.create_task(_health_monitor())
+    reporter_task = asyncio.create_task(_performance_reporter())
     yield
+    monitor_task.cancel()
+    reporter_task.cancel()
+    try:
+        await asyncio.gather(monitor_task, reporter_task, return_exceptions=True)
+    except asyncio.CancelledError:
+        pass
     await get_runtime_manager().stop_all()
+
+
+async def _health_monitor() -> None:
+    """Background task that emits a CRITICAL alert when running bots drop unexpectedly.
+
+    - Waits 30 s after startup so bots have time to connect.
+    - Checks every 60 s.
+    - Debounces: only re-alerts when the set of down-bots changes OR 10 minutes
+      have passed since the last alert for the same set.
+    - Clears debounce state when all expected bots recover.
+    """
+    import logging
+    from app.alerts.models import Severity
+    from app.alerts.service import emit
+    from app.bots.models import BotState
+    from app.bots.service import list_bots
+
+    log = logging.getLogger("health_monitor")
+    _RECHECK_INTERVAL = 60          # seconds between ticks
+    _STARTUP_DELAY   = 30           # seconds to wait before first check
+    _REPEAT_INTERVAL = 10 * 60      # seconds before re-alerting the same set
+
+    last_alerted_ids: frozenset[str] = frozenset()
+    last_alert_time: float = 0.0
+
+    await asyncio.sleep(_STARTUP_DELAY)
+
+    while True:
+        try:
+            mgr = get_runtime_manager()
+            actual_ids: set[str] = mgr.running_ids()
+
+            expected_ids: set[str] = {
+                bot.id for bot in list_bots() if bot.state == BotState.RUNNING
+            }
+
+            missing_ids = expected_ids - actual_ids
+
+            if missing_ids:
+                now = asyncio.get_event_loop().time()
+                missing_frozen = frozenset(missing_ids)
+                new_bots_down  = missing_frozen - last_alerted_ids
+                time_elapsed   = now - last_alert_time
+
+                should_alert = bool(new_bots_down) or (time_elapsed >= _REPEAT_INTERVAL)
+
+                if should_alert:
+                    expected = len(expected_ids)
+                    actual   = len(actual_ids)
+                    missing_list = sorted(missing_ids)
+
+                    log.warning(
+                        "health_monitor: %d/%d expected bots are down: %s",
+                        len(missing_ids), expected, missing_list,
+                    )
+
+                    emit(
+                        severity=Severity.CRITICAL,
+                        source="health_monitor",
+                        message=(
+                            f"{len(missing_ids)} of {expected} expected bots are not running: "
+                            + ", ".join(missing_list)
+                        ),
+                        metadata={
+                            "expected": expected,
+                            "actual": actual,
+                            "missing_bot_ids": missing_list,
+                        },
+                    )
+
+                    last_alerted_ids = missing_frozen
+                    last_alert_time  = now
+            else:
+                # All bots recovered — reset debounce state.
+                if last_alerted_ids:
+                    log.info("health_monitor: all expected bots are running again")
+                last_alerted_ids = frozenset()
+                last_alert_time  = 0.0
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            log.exception("health_monitor: unexpected error during check")
+
+        await asyncio.sleep(_RECHECK_INTERVAL)
+
+
+async def _performance_reporter() -> None:
+    """Send a bot performance summary to Telegram at 06:00, 12:00, and 18:00 UTC.
+
+    Each report covers activity since 00:00 UTC today, so all three reports
+    for a given day show cumulative daily progress.  Timezone can be shifted
+    by setting REPORT_UTC_OFFSET_HOURS (e.g. 1 for UTC+1).
+    """
+    import logging
+    from datetime import datetime, timezone, timedelta
+
+    from app.alerts import telegram
+    from app.bots.models import BotState
+    from app.bots.service import list_bots
+    from app.configs import service as config_service
+    from app.execution import contracts as contracts_svc
+
+    log = logging.getLogger("performance_reporter")
+
+    # Report times as hours in UTC (offset-adjusted if configured)
+    tz_offset = int(os.environ.get("REPORT_UTC_OFFSET_HOURS", "0"))
+    # User-facing report hours in their local time; we convert to UTC fire times
+    LOCAL_HOURS = (6, 12, 18)
+    FIRE_HOURS_UTC = tuple((h - tz_offset) % 24 for h in LOCAL_HOURS)
+    LABEL = {6: "Morning", 12: "Midday", 18: "Evening"}
+
+    def _seconds_until_next_fire() -> float:
+        now_utc = datetime.now(timezone.utc)
+        today = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        candidates = [today.replace(hour=h) for h in FIRE_HOURS_UTC]
+        future = [c for c in candidates if c > now_utc]
+        if future:
+            nxt = min(future)
+        else:
+            nxt = min(candidates) + timedelta(days=1)
+        return (nxt - now_utc).total_seconds()
+
+    def _local_hour_label(utc_hour: int) -> str:
+        local_h = (utc_hour + tz_offset) % 24
+        return LABEL.get(local_h, f"{local_h:02d}:00")
+
+    def _build_report(fired_utc_hour: int) -> str:
+        now_utc = datetime.now(timezone.utc)
+        midnight_ms = int(now_utc.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+
+        mgr = get_runtime_manager()
+        running_ids = mgr.running_ids()
+        bots = [b for b in list_bots() if b.state != BotState.ARCHIVED]
+        expected_running = [b for b in bots if b.state == BotState.RUNNING]
+
+        rows: list[tuple[float, str]] = []  # (pnl, formatted_line)
+        total_pnl = 0.0
+        total_trades = 0
+        active_traders = 0
+
+        for bot in sorted(bots, key=lambda b: b.name):
+            summ = contracts_svc.summary(bot.id, since_ms=midnight_ms)
+            pnl = summ["realized_pnl"]
+            trades = summ["total_count"]
+            won = summ["won_count"]
+            lost = summ["lost_count"]
+            settled = won + lost
+            win_rate = f"{won/settled*100:.0f}%" if settled else "—"
+            status = "🟢" if bot.id in running_ids else "🔴"
+
+            pnl_str = f"+${pnl:.2f}" if pnl > 0 else (f"-${abs(pnl):.2f}" if pnl < 0 else "$0.00")
+            line = f"{status} *{bot.name.replace('Tournament: ', '')}* | {trades}t | {win_rate} | {pnl_str}"
+            rows.append((pnl, line))
+            total_pnl += pnl
+            total_trades += trades
+            if trades > 0:
+                active_traders += 1
+
+        # Sort by PnL descending
+        rows.sort(key=lambda x: x[0], reverse=True)
+
+        running_count = len([b for b in expected_running if b.id in running_ids])
+        expected_count = len(expected_running)
+        health = "🟢" if running_count == expected_count else "🔴"
+        label = _local_hour_label(fired_utc_hour)
+        date_str = now_utc.strftime("%a %d %b %Y")
+        total_str = f"+${total_pnl:.2f}" if total_pnl >= 0 else f"-${abs(total_pnl):.2f}"
+
+        lines = [
+            f"📊 *Brindle — {label} Report*",
+            f"_{date_str}, {now_utc.strftime('%H:%M')} UTC_",
+            "",
+            f"{health} *Bots: {running_count}/{expected_count} running*",
+            "",
+            "*Today's performance (since 00:00 UTC)*",
+            "Bot | Trades | Win% | PnL",
+            "——————————————————",
+        ]
+        for _, line in rows:
+            lines.append(line)
+        lines += [
+            "——————————————————",
+            f"💰 *Portfolio today: {total_str}*  \\|  {total_trades} trades across {active_traders} active bots",
+        ]
+        return "\n".join(lines)
+
+    # Initial wait
+    wait = _seconds_until_next_fire()
+    log.info("performance_reporter: first report in %.0f minutes", wait / 60)
+    await asyncio.sleep(wait)
+
+    while True:
+        try:
+            fired_utc_hour = datetime.now(timezone.utc).hour
+            report = _build_report(fired_utc_hour)
+            telegram.send_raw(report)
+            log.info("performance_reporter: report sent")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception("performance_reporter: error building/sending report")
+
+        await asyncio.sleep(_seconds_until_next_fire())
 
 
 async def _resume_running_bots() -> None:

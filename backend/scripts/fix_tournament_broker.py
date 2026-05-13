@@ -22,7 +22,7 @@ BOT_IDS = [
     "bot_tourn_1"
 ]
 
-async def fix_broker_config(bot_id: str, account_id: str = "VRTC7003444", credential_ref: str = "secret://env/DERIV_API_TOKEN"):
+async def fix_broker_config(bot_id: str, account_id: str = "DOT91022417", credential_ref: str = "secret://env/DERIV_API_TOKEN"):
     print(f"--- Fixing {bot_id} ---")
     
     # 1. Fetch active config
@@ -69,9 +69,8 @@ async def fix_broker_config(bot_id: str, account_id: str = "VRTC7003444", creden
         print(f"  ❌ Failed to fix {bot_id}: {e}")
 
 async def main():
-    # If the user provides a specific account_id via environment, use it.
-    # Otherwise, we use the placeholder VRTC7003444.
-    target_account = os.environ.get("TARGET_ACCOUNT_ID", "VRTC7003444")
+    # DOT91022417 is the only demo account on this API token.
+    target_account = os.environ.get("TARGET_ACCOUNT_ID", "DOT91022417")
     
     for bid in BOT_IDS:
         await fix_broker_config(bid, account_id=target_account)
