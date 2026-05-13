@@ -289,7 +289,10 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                                 source="runtime",
                                 message=f"order rejected by broker: {result.reason}",
                                 bot_id=bot.id,
-                                metadata={"intent": intent.model_dump() if hasattr(intent, "model_dump") else str(intent)}
+                                metadata={
+                                    "intent": intent.model_dump() if hasattr(intent, "model_dump") else str(intent),
+                                    "broker_response": result.extra or {}
+                                }
                             )
                             consecutive_risk_rejects = 0
                     else:
