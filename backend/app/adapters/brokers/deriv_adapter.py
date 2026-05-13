@@ -364,7 +364,7 @@ class DerivAdapter:
 
         native = self._mapper.to_native(intent.symbol)
         contract_type = "CALL" if intent.side == Side.BUY else "PUT"
-        stake = float(intent.notional if intent.notional is not None else (intent.quantity or 10.0))
+        stake = round(float(intent.notional if intent.notional is not None else (intent.quantity or 10.0)), 2)
 
         # Step 1: proposal — get a priced contract
         try:
