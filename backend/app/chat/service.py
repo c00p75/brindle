@@ -194,13 +194,18 @@ async def process_message(
     steps: list[str] = ["Analyzing request..."]
 
     try:
-        for _ in range(8):
+        consecutive_tool_errors = 0
+        for _ in range(6):
             try:
                 response = await client.chat.completions.create(
                     model=_MODEL,
                     messages=llm_messages,
                     tools=TOOLS,
                     tool_choice="auto",
+                    # Force sequential tool calls — llama-3.3-70b-versatile can
+                    # fire the same tool 5x in parallel when confused, which
+                    # floods the loop and produces contradictory output.
+                    parallel_tool_calls=False,
                     max_tokens=1024,
                 )
             except Exception as groq_err:
@@ -261,6 +266,14 @@ async def process_message(
                     result = await execute_tool(tool_name, tool_args, user)
                     actions_taken.append(tool_name)
 
+                    # Track consecutive tool errors so we can bail out of the
+                    # loop if the same tool keeps failing — prevents the model
+                    # from spinning on list_bots (or similar) 5× in a row.
+                    if isinstance(result, dict) and "error" in result:
+                        consecutive_tool_errors += 1
+                    else:
+                        consecutive_tool_errors = 0
+
                     # Extraction: if result contains a bot, add to entities
                     if isinstance(result, dict):
                         if "bot" in result:
@@ -271,8 +284,13 @@ async def process_message(
                     with session_scope() as s:
                         _save_message(s, session_id, "tool", json.dumps(result), tool_call_id=tc.id)
                         s.flush()
-                    
+
                     llm_messages.append({"role": "tool", "tool_call_id": tc.id, "content": json.dumps(result)})
+
+                if consecutive_tool_errors >= 2:
+                    # Two errors in a row — stop the loop and let the model
+                    # give a final plain-text answer about what went wrong.
+                    break
             else:
                 reply = msg.content or ""
                 
