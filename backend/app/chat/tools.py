@@ -217,6 +217,14 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "get_broker_balance",
+            "description": "Get the live account balance from the Deriv broker (real-time, not cached). Returns available balance and currency.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "archive_bot",
             "description": "Archive a bot that is no longer needed (destructive action).",
             "parameters": {
@@ -602,6 +610,35 @@ async def execute_tool(name: str, args: dict, user) -> dict:
                 int(args.get("bars", 100)),
                 args.get("params"),
             )
+
+        elif name == "get_broker_balance":
+            from app.bots import service as bot_service
+            from app.configs.service import active_version
+            from app.adapters.brokers.factory import create_adapter
+            mgr = get_runtime_manager()
+            seen: set[tuple] = set()
+            results = []
+            for bot in bot_service.list_bots():
+                cv = active_version(bot.id)
+                if not cv:
+                    continue
+                bc = cv.config.broker
+                key = (bc.type, bc.account_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                # Use cached balance if available (avoids a new WS connection)
+                cached = mgr.get_cached_balance(bot.id)
+                if cached:
+                    results.append({
+                        "broker": bc.type,
+                        "account_id": bc.account_id,
+                        "environment": bc.environment,
+                        "available": cached["available"],
+                        "currency": cached["currency"],
+                    })
+                    break
+            return {"balances": results} if results else {"error": "No cached balance available — bots may still be starting up."}
 
         elif name == "analyze_portfolio":
             return await research_tools.analyze_portfolio()

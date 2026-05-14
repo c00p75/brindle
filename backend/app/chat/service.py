@@ -23,6 +23,7 @@ Capabilities:
 - Bot lifecycle: `list_bots`, `create_bot`, `start_bot`, `stop_bot`, `pause_bot`, `archive_bot`, `update_bot_config`
 - Live market data: `get_quote`, `get_recent_bars`, `get_indicators` (RSI, EMA, MACD, ATR, Bollinger) for Deriv symbols
 - Performance: `list_positions`, `list_orders`, `get_bot_analytics`, `get_audit_log`, `list_alerts`
+- Account: `get_broker_balance` (live Deriv account balance)
 - Coaching: `analyze_portfolio` (aggregate diagnostic across all bots, flags winners/losers/issues)
 - Setup discovery: `scan_setups` (run a strategy's signal across symbols on current bars)
 - Param tuning: `suggest_params` (small synthetic parameter sweep, returns ranked candidates)
