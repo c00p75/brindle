@@ -194,13 +194,28 @@ async def process_message(
 
     try:
         for _ in range(8):
-            response = await client.chat.completions.create(
-                model=_MODEL,
-                messages=llm_messages,
-                tools=TOOLS,
-                tool_choice="auto",
-                max_tokens=1024,
-            )
+            try:
+                response = await client.chat.completions.create(
+                    model=_MODEL,
+                    messages=llm_messages,
+                    tools=TOOLS,
+                    tool_choice="auto",
+                    max_tokens=1024,
+                )
+            except Exception as groq_err:
+                # llama-3.3-70b-versatile sometimes emits a malformed function
+                # call (<function=name/>) that Groq rejects with 400 tool_use_failed.
+                # Retry once without tools to get a plain text response.
+                err_str = str(groq_err)
+                if "tool_use_failed" in err_str or "failed_generation" in err_str:
+                    response = await client.chat.completions.create(
+                        model=_MODEL,
+                        messages=llm_messages,
+                        tool_choice="none",
+                        max_tokens=1024,
+                    )
+                else:
+                    raise
 
             msg = response.choices[0].message
             

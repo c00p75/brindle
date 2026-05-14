@@ -166,11 +166,17 @@ async def telegram_webhook(request: Request) -> dict:
         )
         _sessions[chat_id] = session_id
 
-        formatted = _format_for_telegram(reply)
-        await _send(chat_id, formatted, buttons=suggestions if suggestions else None)
+        # process_message returns "Assistant error: ..." strings instead of raising.
+        # Surface those cleanly rather than dumping the raw error object.
+        if reply.startswith("Assistant error:"):
+            log.warning("telegram webhook: assistant error for chat_id=%s: %s", chat_id, reply)
+            await _send(chat_id, "⚠️ I ran into a problem processing that. Please try again.")
+        else:
+            formatted = _format_for_telegram(reply)
+            await _send(chat_id, formatted, buttons=suggestions if suggestions else None)
 
     except Exception as exc:
         log.exception("telegram webhook: error processing message")
-        await _send(chat_id, f"⚠️ Error: {exc}")
+        await _send(chat_id, "⚠️ Something went wrong. Please try again in a moment.")
 
     return {"ok": True}
