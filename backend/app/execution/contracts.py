@@ -60,13 +60,23 @@ def record_purchase(
 
 
 def settle(*, contract_id: str, payout_received: float, status: str) -> None:
-    """Mark a contract as won/lost with realized payout."""
+    """Mark a contract as won/lost with realized payout.
+
+    The Deriv API returns the notional (expected) payout in the `payout` field
+    for both won AND lost contracts — not 0 for losses. Store it as-is in
+    payout_received for reference, but compute pnl from actual monetary impact:
+      won  → payout_received - purchase_price  (actual profit)
+      lost → -stake  (lost the stake, received nothing)
+    """
     with session_scope() as s:
         row = s.get(ContractRow, contract_id)
         if row is None or row.status != "open":
             return
         row.payout_received = payout_received
-        row.pnl = payout_received - row.purchase_price
+        if status == "lost":
+            row.pnl = -(row.stake or row.purchase_price)
+        else:
+            row.pnl = payout_received - row.purchase_price
         row.status = status
         row.settled_at_ms = now_epoch_ms()
         s.flush()
@@ -101,7 +111,13 @@ def summary(bot_id: str, *, since_ms: int | None = None,
     open_ = [r for r in rows if r.status == "open"]
     won = [r for r in rows if r.status == "won"]
     lost = [r for r in rows if r.status == "lost"]
-    total_pnl = sum((r.pnl or 0.0) for r in rows if r.pnl is not None)
+    # Compute actual monetary P&L regardless of what's stored in the pnl column.
+    # Historical lost contracts have pnl = notional_payout - stake (wrong),
+    # so always use: won → stored pnl, lost → -stake.
+    total_pnl = (
+        sum((r.pnl or 0.0) for r in won)
+        + sum(-(r.stake or 0.0) for r in lost)
+    )
     return {
         "open_count": len(open_),
         "won_count": len(won),

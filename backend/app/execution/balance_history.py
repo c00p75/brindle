@@ -150,7 +150,7 @@ def analytics(*, bot_id: str, since_ms: int, until_ms: int,
             b["payout"] += (c.payout_received or 0.0)
         elif c.status == "lost":
             b["lost"] += 1
-            b["pnl"] += (c.pnl or 0.0)
+            b["pnl"] += -(c.stake or 0.0)  # actual loss = -stake (pnl column stores notional, not 0)
         else:
             b["open"] += 1
 
