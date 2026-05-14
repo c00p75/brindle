@@ -218,7 +218,19 @@ async def process_message(
                     raise
 
             msg = response.choices[0].message
-            
+
+            # llama-3.3-70b-versatile sometimes leaks <function=name>args</function>
+            # tags into msg.content without setting msg.tool_calls — tools never ran.
+            # Detect this and retry with tool_choice="none" for a clean text answer.
+            if not msg.tool_calls and msg.content and "<function=" in msg.content:
+                response = await client.chat.completions.create(
+                    model=_MODEL,
+                    messages=llm_messages,
+                    tool_choice="none",
+                    max_tokens=1024,
+                )
+                msg = response.choices[0].message
+
             if msg.tool_calls:
                 steps.append(f"Executing {len(msg.tool_calls)} operations...")
                 tool_calls_data = [

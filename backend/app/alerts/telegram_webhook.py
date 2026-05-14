@@ -92,6 +92,9 @@ def _get_admin_user():
 
 def _format_for_telegram(text: str) -> str:
     """Convert GitHub-flavoured Markdown to Telegram-safe Markdown v1."""
+    # Strip leaked <function=name>args</function> tags — the model occasionally
+    # outputs these in its text instead of using proper tool_calls.
+    text = re.sub(r"<function=[^>]+>.*?</function>", "", text, flags=re.DOTALL)
     # **bold** → *bold*
     text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
     # ### headings → plain line
