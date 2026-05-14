@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.alerts.routes import router as alerts_router
+from app.alerts.telegram_webhook import router as telegram_router
 from app.chat.routes import router as chat_router
 from app.audit.routes import router as audit_router
 from app.auth.routes import router as auth_router
@@ -328,6 +329,7 @@ def create_app() -> FastAPI:
     app.include_router(chat_router)
     app.include_router(llm_router)
     app.include_router(brokers_router)
+    app.include_router(telegram_router)
     return app
 
 
