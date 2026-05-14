@@ -9,6 +9,7 @@ import type { UserPublic } from "@/lib/types";
 const LINKS = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/bots", label: "Bots" },
+  { href: "/analytics", label: "Analytics" },
   { href: "/research", label: "Research" },
   { href: "/alerts", label: "Alerts" },
   { href: "/audit", label: "Audit" },

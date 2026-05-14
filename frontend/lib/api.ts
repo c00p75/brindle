@@ -17,6 +17,7 @@ import type {
   Fill,
   Order,
   Position,
+  PortfolioAnalytics,
   TOTPSetupResponse,
   TokenResponse,
   UserPublic,
@@ -290,5 +291,8 @@ export const api = {
   },
   listBrokerBalances(): Promise<BrokerAccountBalance[]> {
     return request("/api/brokers/balances");
+  },
+  getPortfolioAnalytics(): Promise<PortfolioAnalytics> {
+    return request("/api/portfolio/analytics");
   },
 };

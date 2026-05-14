@@ -22,6 +22,7 @@ from app.bots.routes import router as bots_router
 from app.configs.routes import router as configs_router
 from app.llm.routes import router as llm_router
 from app.brokers.routes import router as brokers_router
+from app.portfolio.routes import router as portfolio_router
 from app.core.logging_config import configure_logging
 from app.core.metrics import bots_running, http_request_duration_seconds, http_requests_total
 from app.core.settings import get_settings
@@ -330,6 +331,7 @@ def create_app() -> FastAPI:
     app.include_router(llm_router)
     app.include_router(brokers_router)
     app.include_router(telegram_router)
+    app.include_router(portfolio_router)
     return app
 
 

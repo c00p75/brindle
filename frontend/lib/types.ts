@@ -291,6 +291,46 @@ export interface BalanceSnapshot {
   source: string;
 }
 
+export interface PortfolioDayRow {
+  date: string;
+  trades: number;
+  won: number;
+  lost: number;
+  real_pnl: number;
+  win_rate: number | null;
+  running_balance: number;
+}
+
+export interface PortfolioBotRow {
+  bot_id: string;
+  name: string;
+  trades: number;
+  won: number;
+  lost: number;
+  win_rate: number;
+  real_pnl: number;
+  avg_stake: number;
+}
+
+export interface PortfolioAnalytics {
+  account: {
+    opening_balance: number;
+    current_balance: number;
+    peak_balance: number;
+    net_change: number;
+    net_change_pct: number | null;
+    max_drawdown: number;
+    max_drawdown_pct: number | null;
+    total_trades: number;
+    total_won: number;
+    total_lost: number;
+    overall_win_rate: number;
+    break_even_win_rate: number;
+  };
+  daily: PortfolioDayRow[];
+  bots: PortfolioBotRow[];
+}
+
 export interface AnalyticsBucket {
   bucket_ms: number;
   // contract activity in this bucket
