@@ -48,7 +48,7 @@ export interface RiskLimits {
   max_open_orders: number;
   max_consecutive_losses: number;
   risk_per_trade_pct: number | null;
-  max_stake: number | null;
+  max_stake?: number | null;
   kill_switch: boolean;
 }
 
