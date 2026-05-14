@@ -32,6 +32,18 @@ def compute_stake(ctx: StrategyContext, default_qty: float) -> tuple[float | Non
             stake = (ctx.effective_balance * ctx.risk_per_trade_pct) / 100.0
         else:
             stake = default_qty
+
+        # Explicit max_stake cap from risk config
+        max_stake = getattr(ctx, "max_stake", None)
+        if max_stake is not None:
+            stake = min(stake, max_stake)
+
+        # Hard safety cap: stake can never exceed 10% of base allocation,
+        # regardless of effective_balance. Prevents runaway sizing if P&L
+        # accounting ever over-reports gains.
+        if ctx.allocation is not None:
+            stake = min(stake, ctx.allocation * 0.10)
+
         stake = max(stake, 0.35)  # Deriv minimum
         return None, stake
 

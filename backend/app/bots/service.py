@@ -234,7 +234,7 @@ def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
     return bot
 
 
-def pause(bot_id: str, actor_email: str, actor_role: str) -> Bot:
+def pause(bot_id: str, actor_email: str, actor_role: str, reason: str | None = None) -> Bot:
     bot = _set_state(bot_id, BotState.PAUSED, {BotState.RUNNING})
     audit(
         actor_email=actor_email,
@@ -242,6 +242,7 @@ def pause(bot_id: str, actor_email: str, actor_role: str) -> Bot:
         action="bot.pause",
         resource_type="bot",
         resource_id=bot.id,
+        metadata={"reason": reason} if reason else None,
     )
     return bot
 

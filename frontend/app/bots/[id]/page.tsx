@@ -190,6 +190,16 @@ function BotDetails() {
     catch (e) { alert(e instanceof Error ? e.message : "failed"); }
   }
 
+  // Pause reason: find the most recent bot.pause audit entry with a reason
+  const lastPauseReason = bot.state === "paused"
+    ? (() => {
+        const ev = [...audit]
+          .filter(e => e.action === "bot.pause" && e.metadata?.reason)
+          .sort((a, b) => b.at_ms - a.at_ms)[0];
+        return ev ? (ev.metadata.reason as string) : null;
+      })()
+    : null;
+
   // Compute stats
   const totalPnl = positions.reduce((sum, p) => sum + (p.realized_pnl || 0), 0);
   const filledOrders = orders.filter(o => o.status === "filled").length;
@@ -234,6 +244,18 @@ function BotDetails() {
           </div>
         </div>
       </div>
+
+      {/* Pause reason banner */}
+      {lastPauseReason && (
+        <div style={{
+          background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 6,
+          padding: "10px 14px", marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start",
+          fontSize: 13, color: "#92400e",
+        }}>
+          <span style={{ fontWeight: 600, whiteSpace: "nowrap" }}>Paused:</span>
+          <span>{lastPauseReason}</span>
+        </div>
+      )}
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24 }}>

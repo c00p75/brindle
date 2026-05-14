@@ -17,6 +17,8 @@ class RiskLimits(BaseModel):
         description="Pause bot after N consecutive losing trades. 0=disabled.")
     risk_per_trade_pct: float | None = Field(default=None, ge=0, le=100,
         description="Dynamic sizing: risk X% of effective balance per trade.")
+    max_stake: float | None = Field(default=None, gt=0,
+        description="Hard cap on per-trade stake in USD. Overrides risk_per_trade_pct sizing.")
 
     @field_validator("max_total_exposure")
     @classmethod

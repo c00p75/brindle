@@ -94,6 +94,19 @@ function PortfolioAnalyticsView() {
         <BalanceChart daily={daily} openingBalance={account.opening_balance} />
       </div>
 
+      {/* ── Rolling win-rate trend ─────────────────────────────────────────── */}
+      {daily.length >= 3 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 14 }}>
+            <h2>7-Day Rolling Win Rate</h2>
+            <span style={{ fontSize: 12, color: "#aaa" }}>
+              Break-even: {(beWr * 100).toFixed(1)}%
+            </span>
+          </div>
+          <RollingWinRateChart daily={daily} beWr={beWr} />
+        </div>
+      )}
+
       {/* ── Daily activity ─────────────────────────────────────────────────── */}
       <div className="card" style={{ marginBottom: 20, padding: 0, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px 14px", borderBottom: "1px solid #e8eaeb" }}>
@@ -192,6 +205,59 @@ function BalanceChart({ daily, openingBalance }: { daily: PortfolioDayRow[]; ope
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 11, color: "#bbb" }}>
         {labelIdxs.map((i) => (
           <span key={i}>{daily[i].date}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Rolling Win-Rate Chart ────────────────────────────────────────────────────
+function RollingWinRateChart({ daily, beWr }: { daily: PortfolioDayRow[]; beWr: number }) {
+  // Compute 7-day rolling win rate: for each day, sum won/total over the
+  // preceding 7 days (inclusive). Skip days with no trades in the window.
+  const rolling: { date: string; wr: number | null }[] = daily.map((_, i) => {
+    const window = daily.slice(Math.max(0, i - 6), i + 1);
+    const totalTrades = window.reduce((s, d) => s + d.trades, 0);
+    if (totalTrades === 0) return { date: daily[i].date, wr: null };
+    const totalWon = window.reduce((s, d) => s + d.won, 0);
+    return { date: daily[i].date, wr: totalWon / totalTrades };
+  });
+
+  const withData = rolling.filter((r) => r.wr !== null);
+  if (withData.length < 2) return null;
+
+  const W = 800, H = 120, PAD_X = 8, PAD_Y = 12;
+  const values = withData.map((r) => r.wr as number);
+  const minY = Math.min(...values, beWr, 0.3);
+  const maxY = Math.max(...values, beWr, 0.75);
+  const rangeY = maxY - minY || 0.1;
+
+  const toX = (i: number) => PAD_X + (i / (withData.length - 1)) * (W - PAD_X * 2);
+  const toY = (v: number) => H - PAD_Y - ((v - minY) / rangeY) * (H - PAD_Y * 2);
+
+  const beY = toY(beWr).toFixed(1);
+  const polyline = withData.map((r, i) => `${toX(i).toFixed(1)},${toY(r.wr as number).toFixed(1)}`).join(" ");
+  const lastWr = withData[withData.length - 1].wr as number;
+  const lineColor = lastWr >= beWr ? "#008265" : "#cc2626";
+
+  const labelIdxs = [0, Math.floor((withData.length - 1) / 2), withData.length - 1];
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }}>
+        {/* Break-even line */}
+        <line x1={PAD_X} y1={beY} x2={W - PAD_X} y2={beY}
+          stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 3" />
+        <text x={W - PAD_X - 2} y={parseFloat(beY) - 4}
+          textAnchor="end" fontSize={10} fill="#b37600">
+          BE {(beWr * 100).toFixed(1)}%
+        </text>
+        <polyline points={polyline} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" />
+        <circle cx={toX(withData.length - 1)} cy={toY(lastWr)} r={4} fill={lineColor} />
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 11, color: "#bbb" }}>
+        {labelIdxs.map((i) => (
+          <span key={i}>{withData[i].date}</span>
         ))}
       </div>
     </div>

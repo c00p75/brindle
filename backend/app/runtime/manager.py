@@ -264,6 +264,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                     allocation=bot.allocation,
                     effective_balance=effective_balance,
                     risk_per_trade_pct=cfg.risk.risk_per_trade_pct,
+                    max_stake=getattr(cfg.risk, "max_stake", None),
                     open_contract_count=effective_open_count,
                     last_trade_at_ms=last_trade_at,
                 )
@@ -325,6 +326,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                                 bot.id,
                                 actor_email="runtime",
                                 actor_role="system",
+                                reason=f"5 consecutive risk rejections — last: {result.reason}",
                             )
                         except Exception:  # noqa: BLE001
                             pass
@@ -462,7 +464,8 @@ def _loss_streak_breached(bot: Bot, cfg: BotConfig) -> bool:
     log.warning("loss-streak auto-stop bot=%s n=%d", bot.id, limit)
     from app.bots import service as bot_service
     try:
-        bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+        bot_service.pause(bot.id, actor_email="runtime", actor_role="system",
+                          reason=f"{limit} consecutive losing trades")
     except Exception:  # noqa: BLE001
         pass
     return True
@@ -539,7 +542,7 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
         )
         log.warning("drawdown auto-stop bot=%s: %s", bot.id, reason)
         try:
-            bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+            bot_service.pause(bot.id, actor_email="runtime", actor_role="system", reason=reason)
         except Exception:  # noqa: BLE001
             pass
         return True
@@ -569,7 +572,8 @@ def _allocation_depleted(bot: Bot, cfg: BotConfig) -> bool:
         log.warning("allocation-depletion auto-stop bot=%s balance=%.2f", bot.id, effective)
         from app.bots import service as bot_service
         try:
-            bot_service.pause(bot.id, actor_email="runtime", actor_role="system")
+            bot_service.pause(bot.id, actor_email="runtime", actor_role="system",
+                              reason=f"virtual allocation depleted (${effective:.2f} remaining)")
         except Exception:  # noqa: BLE001
             pass
         return True
