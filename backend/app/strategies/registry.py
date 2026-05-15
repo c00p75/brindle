@@ -10,6 +10,7 @@ from app.strategies.bollinger import BollingerV1
 from app.strategies.dca import DcaV1
 from app.strategies.deriv import DerivV1
 from app.strategies.grid import GridV1
+from app.strategies.grid_v2 import GridV2
 from app.strategies.macd import MacdV1
 from app.strategies.market_making import MarketMakingV1
 from app.strategies.orb import OrbV1
@@ -28,6 +29,7 @@ STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "macd_v1": MacdV1,
     "regime_v1": RegimeV1,
     "grid_v1": GridV1,
+    "grid_v2": GridV2,
     "dca_v1": DcaV1,
     "orb_v1": OrbV1,
     "vol_breakout_v1": VolBreakoutV1,
