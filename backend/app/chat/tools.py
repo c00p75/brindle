@@ -90,6 +90,20 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "resume_all_paused_bots",
+            "description": (
+                "Attempt to start every bot that is currently in PAUSED state. "
+                "Returns a summary: which bots started successfully, which failed "
+                "(e.g. genuine drawdown breach or no config), and why. "
+                "Use this when the user says 'restart all paused bots', 'resume everything', "
+                "'start all paused bots', or similar bulk-restart requests."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_alerts",
             "description": "List all system alerts, notifications, and error flags. Use this to find out why a bot stopped, what risk limits were hit, or to get a general system health check.",
             "parameters": {
@@ -490,6 +504,24 @@ async def execute_tool(name: str, args: dict, user) -> dict:
             await get_runtime_manager().start(bot)
             return {"status": "started", "bot": bot.model_dump()}
 
+        elif name == "resume_all_paused_bots":
+            all_bots = bot_service.list_bots()
+            paused = [b for b in all_bots if b.state.value == "paused"]
+            started, failed = [], []
+            for b in paused:
+                try:
+                    updated = bot_service.start(b.id, actor_email=user.email, actor_role=user.role.value)
+                    await get_runtime_manager().start(updated)
+                    started.append({"id": b.id, "name": b.name})
+                except Exception as e:
+                    failed.append({"id": b.id, "name": b.name, "reason": str(e)})
+            return {
+                "total_paused": len(paused),
+                "started": started,
+                "failed": failed,
+                "summary": f"{len(started)} started, {len(failed)} could not start",
+            }
+
         elif name == "stop_bot":
             bot_id = args["bot_id"]
             bot = bot_service.stop(bot_id, actor_email=user.email, actor_role=user.role.value)
@@ -670,6 +702,7 @@ WRITE_TOOLS = {
     "start_bot",
     "stop_bot",
     "pause_bot",
+    "resume_all_paused_bots",
     "create_bot",
     "archive_bot",
     "update_bot_config",
