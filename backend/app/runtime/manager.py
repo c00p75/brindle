@@ -521,17 +521,27 @@ async def _drawdown_breached(bot: Bot, cfg: BotConfig) -> bool:
         reason = f"daily loss ${daily_loss:.2f} >= limit ${cfg.risk.max_daily_loss:.2f}"
 
     # 2) Drawdown-from-peak check: max_drawdown_pct is enforced here, not just
-    #    in the schema. Peak is the highest balance observed for this bot.
+    #    in the schema. For allocation bots, peak = allocation (PnL-based).
+    #    For real-balance bots, peak = max recorded broker balance.
     if not breached and cfg.risk.max_drawdown_pct > 0:
-        all_history = balance_history.history(bot_id=bot.id, max_points=10_000, since_ms=bot.starting_balance_at_ms)
-        if all_history:
-            peak = max(float(h["balance"]) for h in all_history)
-            if peak > 0:
-                dd_pct = (peak - current) / peak * 100.0
-                if dd_pct >= cfg.risk.max_drawdown_pct:
-                    breached = True
-                    reason = (f"drawdown {dd_pct:.2f}% from peak ${peak:.2f} to ${current:.2f} "
-                              f">= limit {cfg.risk.max_drawdown_pct:.2f}%")
+        if bot.allocation:
+            # current is already allocation + realized_pnl (computed above).
+            # Drawdown is how much of the initial allocation has been lost.
+            dd_pct = max(0.0, (bot.allocation - current) / bot.allocation * 100.0)
+            if dd_pct >= cfg.risk.max_drawdown_pct:
+                breached = True
+                reason = (f"drawdown {dd_pct:.2f}% of allocation ${bot.allocation:.2f} "
+                          f"(equity ${current:.2f}) >= limit {cfg.risk.max_drawdown_pct:.2f}%")
+        else:
+            all_history = balance_history.history(bot_id=bot.id, max_points=10_000, since_ms=bot.starting_balance_at_ms)
+            if all_history:
+                peak = max(float(h["balance"]) for h in all_history)
+                if peak > 0:
+                    dd_pct = (peak - current) / peak * 100.0
+                    if dd_pct >= cfg.risk.max_drawdown_pct:
+                        breached = True
+                        reason = (f"drawdown {dd_pct:.2f}% from peak ${peak:.2f} to ${current:.2f} "
+                                  f">= limit {cfg.risk.max_drawdown_pct:.2f}%")
 
     if breached:
         emit_alert(

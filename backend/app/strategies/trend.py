@@ -20,6 +20,7 @@ Params:
 from __future__ import annotations
 
 from app.core.ids import new_id
+from app.core.time import now_epoch_ms
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
 from app.strategies.sizing import make_intent_kwargs
@@ -119,6 +120,9 @@ class TrendV1:
         }
 
     def on_data(self, ctx: StrategyContext) -> list[OrderIntent]:
+        if ctx.open_contract_count > 0:
+            return []
+
         params = ctx.params
         fast_n = int(params.get("fast", 5))
         slow_n = int(params.get("slow", 20))
@@ -126,6 +130,9 @@ class TrendV1:
         min_cross_pct = float(params.get("min_cross_pct", 0.02))
         cooldown_ticks = int(params.get("cooldown_ticks", 10))
         if fast_n <= 0 or slow_n <= fast_n:
+            return []
+
+        if ctx.last_trade_at_ms and now_epoch_ms() - ctx.last_trade_at_ms < cooldown_ticks * 1000:
             return []
 
         # Compute sizing (notional for Deriv, quantity for traditional)

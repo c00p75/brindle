@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 
 from app.core.ids import new_id
+from app.core.time import now_epoch_ms
 from app.execution.models import OrderIntent, OrderType, Side
 from app.strategies.base import StrategyContext
 from app.strategies.sizing import make_intent_kwargs
@@ -109,11 +110,17 @@ class BollingerV1:
         }
 
     def on_data(self, ctx: StrategyContext) -> list[OrderIntent]:
+        if ctx.open_contract_count > 0:
+            return []
+
         params = ctx.params
         period = int(params.get("period", 20))
         num_std = float(params.get("num_std", 2.0))
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
+
+        if ctx.last_trade_at_ms and now_epoch_ms() - ctx.last_trade_at_ms < cooldown_ticks * 1000:
+            return []
 
         sizing = make_intent_kwargs(ctx, qty)
         if sizing is None:

@@ -187,27 +187,32 @@ def start(bot_id: str, actor_email: str, actor_role: str) -> Bot:
     # ONLY enforced when resuming from PAUSED. Fresh starts (READY/HALTED) 
     # reset the baseline anyway.
     if current.state == BotState.PAUSED:
-        from app.execution import balance_history
-        history = balance_history.history(bot_id=bot_id, max_points=1000)
-        if history:
-            hwm = max(float(h["balance"]) for h in history)
+        limit = cv.config.risk.max_drawdown_pct
+        if limit > 0:
             if current.allocation:
                 from app.execution import contracts as contracts_svc
-                # Use current run PnL for the drawdown check
                 pnl = contracts_svc.summary(bot_id, since_ms=current.starting_balance_at_ms)["realized_pnl"]
                 equity = current.allocation + pnl
-            else:
-                # For non-allocation bots, we use the last recorded balance
-                equity = history[-1]["balance"]
-                
-            if hwm > 0:
-                dd_pct = (hwm - equity) / hwm * 100
-                limit = cv.config.risk.max_drawdown_pct
+                dd_pct = max(0.0, (current.allocation - equity) / current.allocation * 100)
                 if dd_pct >= limit:
                     raise ValueError(
-                        f"cannot start: bot is in drawdown ({dd_pct:.1f}% >= {limit}% limit). "
-                        "Reset the baseline or adjust risk limits to continue."
+                        f"cannot start: allocation drawdown {dd_pct:.1f}% >= {limit}% limit "
+                        f"(equity ${equity:.2f} of ${current.allocation:.2f}). "
+                        "Adjust risk limits or reset the baseline to continue."
                     )
+            else:
+                from app.execution import balance_history
+                history = balance_history.history(bot_id=bot_id, max_points=1000)
+                if history:
+                    hwm = max(float(h["balance"]) for h in history)
+                    equity = float(history[-1]["balance"])
+                    if hwm > 0:
+                        dd_pct = (hwm - equity) / hwm * 100
+                        if dd_pct >= limit:
+                            raise ValueError(
+                                f"cannot start: bot is in drawdown ({dd_pct:.1f}% >= {limit}% limit). "
+                                "Reset the baseline or adjust risk limits to continue."
+                            )
 
     # Ensure state reflects an applied config (DRAFT → READY) before transitioning.
     refreshed = refresh_state_from_config(current)
