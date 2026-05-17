@@ -93,12 +93,28 @@ TOOLS = [
             "name": "resume_all_paused_bots",
             "description": (
                 "Attempt to start every bot that is currently in PAUSED state. "
+                "Optionally supply name_filter (case-insensitive substring) to target a "
+                "specific group — e.g. name_filter='Tournament' restarts only tournament bots. "
                 "Returns a summary: which bots started successfully, which failed "
                 "(e.g. genuine drawdown breach or no config), and why. "
-                "Use this when the user says 'restart all paused bots', 'resume everything', "
-                "'start all paused bots', or similar bulk-restart requests."
+                "Use this for ANY bulk-restart request: 'restart all paused bots', "
+                "'resume everything', 'start all paused bots', 'get the tournament bots "
+                "back up', 'resume my X bots', or any request to restart a named group."
             ),
-            "parameters": {"type": "object", "properties": {}, "required": []},
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name_filter": {
+                        "type": "string",
+                        "description": (
+                            "Optional case-insensitive substring to match against bot names. "
+                            "Omit to restart all paused bots. "
+                            "Example: 'Tournament' targets only bots whose name contains 'Tournament'."
+                        ),
+                    },
+                },
+                "required": [],
+            },
         },
     },
     {
@@ -506,7 +522,10 @@ async def execute_tool(name: str, args: dict, user) -> dict:
 
         elif name == "resume_all_paused_bots":
             all_bots = bot_service.list_bots()
-            paused = [b for b in all_bots if b.state.value == "paused"]
+            name_filter = (args.get("name_filter") or "").strip().lower()
+            paused = [b for b in all_bots if b.state == "paused"]
+            if name_filter:
+                paused = [b for b in paused if name_filter in b.name.lower()]
             started, failed = [], []
             for b in paused:
                 try:
