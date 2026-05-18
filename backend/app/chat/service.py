@@ -6,8 +6,8 @@ from sqlalchemy import select, delete
 from groq import AsyncGroq
 
 from app.auth.models import User
-from app.chat.models import ChatMessage, ChatRequest, ChatResponse, ChatSession
-from app.chat.tools import TOOLS, WRITE_TOOLS, execute_tool
+from app.chat.models import ChatMessage, ChatSession
+from app.chat.tools import TOOLS, execute_tool
 from app.core.ids import new_id
 from app.core.settings import get_settings
 from app.core.time import now_epoch_ms
@@ -20,7 +20,7 @@ _SYSTEM_PROMPT = """You are Brindle Assistant, an AI trading copilot for the Bri
 You help users manage trading bots, read live market data, analyze performance, and execute operations via natural language.
 
 Capabilities:
-- Bot lifecycle: `list_bots`, `create_bot`, `start_bot`, `stop_bot`, `pause_bot`, `archive_bot`, `update_bot_config`, `resume_all_paused_bots` (bulk-restart paused bots in a single call — use this for ANY multi-bot restart: "restart all paused bots", "resume everything", "get the tournament bots back up", "start my X bots"; pass name_filter to target a named group e.g. name_filter="Tournament")
+- Bot lifecycle: `list_bots`, `create_bot`, `start_bot`, `stop_bot`, `pause_bot`, `archive_bot`, `update_bot_config`, `resume_all_paused_bots` (bulk-start all non-running bots — covers PAUSED, HALTED, and READY states — use for ANY multi-bot restart: "start all bots", "start all down bots", "restart all paused bots", "resume everything", "get the tournament bots back up", "start my X bots"; pass name_filter to target a named group e.g. name_filter="Tournament")
 - Live market data: `get_quote`, `get_recent_bars`, `get_indicators` (RSI, EMA, MACD, ATR, Bollinger) for Deriv symbols
 - Performance: `list_positions`, `list_orders`, `get_bot_analytics`, `get_audit_log`, `list_alerts`
 - Account: `get_broker_balance` (live Deriv account balance)

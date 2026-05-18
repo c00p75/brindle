@@ -1,8 +1,11 @@
-"""Configure every tournament bot to "run until depleted" mode, then start it.
+"""Configure every non-running allocation bot to "run until depleted" mode, then start it.
+
+Targets all bots in PAUSED, HALTED, or READY state that have an allocation set.
+Skips bots with no allocation (no defined budget to deplete).
 
 Risk settings applied:
   max_drawdown_pct    = 100  — only auto-pauses when allocation is fully gone
-  max_daily_loss      = allocation (default $100) — same effective threshold
+  max_daily_loss      = allocation — same effective threshold
   max_consecutive_losses = 0 — streak-based circuit breaker disabled
 
 The allocation-depletion guard in the runtime (_allocation_depleted) is the
@@ -26,7 +29,7 @@ from app.runtime.manager import get_runtime_manager
 
 ACTOR = "system/tournament-setup"
 ROLE = "admin"
-NAME_FILTER = "tournament"
+_DOWN = {BotState.PAUSED, BotState.HALTED, BotState.READY}
 
 
 async def configure_and_start(bot_id: str, bot_name: str, allocation: float) -> None:
@@ -50,9 +53,8 @@ async def configure_and_start(bot_id: str, bot_name: str, allocation: float) -> 
         if validated.validation_errors:
             print(f"  ❌ Validation failed: {validated.validation_errors}")
             return
-        if validated.validation_warnings:
-            for w in validated.validation_warnings:
-                print(f"  ⚠  {w}")
+        for w in validated.validation_warnings:
+            print(f"  ⚠  {w}")
         config_service.apply(
             actor_email=ACTOR,
             actor_role=ROLE,
@@ -60,12 +62,12 @@ async def configure_and_start(bot_id: str, bot_name: str, allocation: float) -> 
             version=draft.version,
             typed_confirmation="APPLY RISK CHANGE",
         )
-        print(f"  ✓  Tournament config applied (v{draft.version})")
+        print(f"  ✓  Config applied (v{draft.version}): drawdown=100%, daily_loss=${allocation:.0f}, streak_limit=off")
     except Exception as e:
         print(f"  ❌ Config update failed: {e}")
         return
 
-    # Halt cleanly before restarting to clear any PAUSED/RUNNING state.
+    # Halt first to clear any PAUSED state before restarting.
     bot = bot_service.get(bot_id)
     if bot and bot.state in {BotState.PAUSED, BotState.RUNNING}:
         try:
@@ -74,33 +76,44 @@ async def configure_and_start(bot_id: str, bot_name: str, allocation: float) -> 
         except Exception as e:
             print(f"  ⚠  Stop failed (may already be halted): {e}")
 
-    # Clear baseline so PnL and drawdown tracking start fresh from this run.
+    # Clear baseline so PnL and drawdown tracking start fresh.
     bot_service.reset_starting_balance(bot_id)
 
     try:
         started = bot_service.start(bot_id, actor_email=ACTOR, actor_role=ROLE)
         await get_runtime_manager().start(started)
-        print(f"  🚀 Started — will trade until ${allocation:.0f} allocation depleted")
+        print(f"  🚀 Started — trading until ${allocation:.0f} depleted")
     except Exception as e:
         print(f"  ❌ Start failed: {e}")
 
 
 async def main() -> None:
     all_bots = bot_service.list_bots()
-    tournament_bots = [b for b in all_bots if NAME_FILTER in b.name.lower()]
+    down = [b for b in all_bots if b.state in _DOWN]
 
-    if not tournament_bots:
-        print(f"No bots found with '{NAME_FILTER}' in their name.")
+    if not down:
+        print("No bots in PAUSED / HALTED / READY state — nothing to do.")
         return
 
-    print(f"Found {len(tournament_bots)} tournament bot(s):\n")
-    for b in tournament_bots:
-        alloc = b.allocation or 100.0
-        print(f"  {b.name:<35}  state={b.state.value:<8}  allocation=${alloc:.0f}")
+    no_alloc = [b for b in down if not b.allocation]
+    targets  = [b for b in down if b.allocation]
 
-    print()
-    for b in tournament_bots:
-        await configure_and_start(b.id, b.name, allocation=b.allocation or 100.0)
+    if no_alloc:
+        print(f"Skipping {len(no_alloc)} bot(s) with no allocation (no budget to deplete):")
+        for b in no_alloc:
+            print(f"  - {b.name} ({b.id})  state={b.state.value}")
+        print()
+
+    if not targets:
+        print("No allocation bots to start.")
+        return
+
+    print(f"Configuring and starting {len(targets)} bot(s):\n")
+    for b in targets:
+        print(f"  {b.name:<40}  state={b.state.value:<8}  allocation=${b.allocation:.0f}")
+
+    for b in targets:
+        await configure_and_start(b.id, b.name, allocation=b.allocation)
 
     print("\nDone.")
 

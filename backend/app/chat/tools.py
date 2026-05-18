@@ -92,13 +92,13 @@ TOOLS = [
         "function": {
             "name": "resume_all_paused_bots",
             "description": (
-                "Attempt to start every bot that is currently in PAUSED state. "
+                "Attempt to start every bot that is currently in PAUSED, HALTED, or READY state. "
                 "Optionally supply name_filter (case-insensitive substring) to target a "
                 "specific group — e.g. name_filter='Tournament' restarts only tournament bots. "
                 "Returns a summary: which bots started successfully, which failed "
                 "(e.g. genuine drawdown breach or no config), and why. "
-                "Use this for ANY bulk-restart request: 'restart all paused bots', "
-                "'resume everything', 'start all paused bots', 'get the tournament bots "
+                "Use this for ANY bulk-restart request: 'start all bots', 'restart all paused bots', "
+                "'resume everything', 'start all down bots', 'get the tournament bots "
                 "back up', 'resume my X bots', or any request to restart a named group."
             ),
             "parameters": {
@@ -108,7 +108,7 @@ TOOLS = [
                         "type": "string",
                         "description": (
                             "Optional case-insensitive substring to match against bot names. "
-                            "Omit to restart all paused bots. "
+                            "Omit to start all non-running bots. "
                             "Example: 'Tournament' targets only bots whose name contains 'Tournament'."
                         ),
                     },
@@ -523,11 +523,12 @@ async def execute_tool(name: str, args: dict, user) -> dict:
         elif name == "resume_all_paused_bots":
             all_bots = bot_service.list_bots()
             name_filter = (args.get("name_filter") or "").strip().lower()
-            paused = [b for b in all_bots if b.state == "paused"]
+            _startable = {"paused", "halted", "ready"}
+            down = [b for b in all_bots if b.state in _startable]
             if name_filter:
-                paused = [b for b in paused if name_filter in b.name.lower()]
+                down = [b for b in down if name_filter in b.name.lower()]
             started, failed = [], []
-            for b in paused:
+            for b in down:
                 try:
                     updated = bot_service.start(b.id, actor_email=user.email, actor_role=user.role.value)
                     await get_runtime_manager().start(updated)
@@ -535,7 +536,7 @@ async def execute_tool(name: str, args: dict, user) -> dict:
                 except Exception as e:
                     failed.append({"id": b.id, "name": b.name, "reason": str(e)})
             return {
-                "total_paused": len(paused),
+                "total_down": len(down),
                 "started": started,
                 "failed": failed,
                 "summary": f"{len(started)} started, {len(failed)} could not start",
