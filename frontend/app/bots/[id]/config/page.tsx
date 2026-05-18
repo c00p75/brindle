@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import ConfigDiff from "@/components/ConfigDiff";
 import Navigation from "@/components/Navigation";
@@ -183,7 +183,7 @@ function ConfigEditor() {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <section className="card">
           <h2 style={{ marginTop: 0 }}>Strategy</h2>
-          <label>Strategy</label>
+          <label>Strategy <FieldHelp text="The trading algorithm this bot will run. Each strategy has a different approach — trend-following, mean reversion, breakout, etc. Changing this resets the parameters to the new strategy's defaults." /></label>
           {strategies.length > 0 ? (
             <select value={cfg.strategy.strategy_id}
               onChange={(e) => onStrategyChange(e.target.value)}
@@ -195,7 +195,7 @@ function ConfigEditor() {
               onChange={(e) => onStrategyChange(e.target.value)}
               style={{ width: "100%" }} />
           )}
-          <label>Parameters (JSON)</label>
+          <label>Parameters (JSON) <FieldHelp text="Fine-tuning knobs for the strategy — things like how many bars to look back, how aggressively to size trades, or how long to wait between trades. Use 'restore defaults' if you're unsure what to set." /></label>
           <textarea
             value={JSON.stringify(cfg.strategy.params, null, 2)}
             onChange={(e) => {
@@ -213,7 +213,7 @@ function ConfigEditor() {
               >restore defaults</button> to reset.
             </p>
           )}
-          <label>Symbols</label>
+          <label>Symbols <FieldHelp text="The markets this bot will trade. V75/USD is Deriv's Volatility 75 index — it moves 24/7. EUR/USD is the euro-dollar forex pair. You can pick multiple, and the bot will trade each one." /></label>
           <SymbolPicker
             selected={cfg.symbols}
             onChange={(syms) => setCfg({ ...cfg, symbols: syms })}
@@ -225,46 +225,46 @@ function ConfigEditor() {
           <h2 style={{ marginTop: 0 }}>Risk limits</h2>
           <div className="form-row">
             <div>
-              <label>Max position notional (USD)</label>
+              <label>Max position notional (USD) <FieldHelp text="The most money that can be tied up in a single trade at once. If a trade would cost $150 but this is set to $100, the trade is blocked. Set it at least as large as your typical trade size." /></label>
               <input type="number" min={1} value={cfg.risk.max_position_notional}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_position_notional: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
               {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${bot.allocation ?? 100}</p>}
             </div>
             <div>
-              <label>Max total exposure (USD)</label>
+              <label>Max total exposure (USD) <FieldHelp text="The maximum total value of all open trades combined. If you have 3 trades open at $50 each, that's $150 total. Must be at least as large as max position notional." /></label>
               <input type="number" min={1} value={cfg.risk.max_total_exposure}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_total_exposure: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
               {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${(bot.allocation ?? 100) * 2}</p>}
             </div>
             <div>
-              <label>Max daily loss (USD)</label>
+              <label>Max daily loss (USD) <FieldHelp text="If the bot loses this much in a single day, it stops automatically. A safety net to prevent a bad day from wiping out too much. Example: set to $30 on a $100 account to limit daily losses to 30%." /></label>
               <input type="number" min={1} value={cfg.risk.max_daily_loss}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_daily_loss: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
               {bot && <p style={{ fontSize: 10, margin: "4px 0 0 0", opacity: 0.6 }}>Recommended: ≥ ${Math.round((bot.allocation ?? 100) * 0.3)}</p>}
             </div>
             <div>
-              <label>Max drawdown (%)</label>
+              <label>Max drawdown (%) <FieldHelp text="If the bot's balance drops this far below its starting point, it pauses. Example: 25% on a $100 balance means it stops if balance falls to $75. Set to 100 to let it trade until the allocation is fully depleted." /></label>
               <input type="number" min={0.1} max={100} step="0.1" value={cfg.risk.max_drawdown_pct}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_drawdown_pct: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
             </div>
             <div>
-              <label>Max open orders</label>
+              <label>Max open orders <FieldHelp text="How many trades can be active at the same time. Most strategies work well with 1–5. Higher values mean more simultaneous exposure. The bot won't open a new trade if this limit is already reached." /></label>
               <input type="number" min={1} value={cfg.risk.max_open_orders}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_open_orders: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
             </div>
             <div>
-              <label>Max consecutive losses</label>
+              <label>Max consecutive losses <FieldHelp text="If the bot loses this many trades in a row, it pauses automatically. Catches strategies that are clearly misfiring before more damage is done. Set to 0 to disable this check." /></label>
               <input type="number" min={0} value={cfg.risk.max_consecutive_losses}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, max_consecutive_losses: Number(e.target.value) } })}
                 style={{ width: "100%" }} />
             </div>
             <div>
-              <label>Risk per trade (%)</label>
+              <label>Risk per trade (%) <FieldHelp text="Size each trade as a percentage of your current balance instead of a fixed amount. Example: 10% on a $100 balance = $10 per trade. As your balance grows or shrinks, so does the trade size. Leave blank to use the fixed qty from the strategy parameters." /></label>
               <input type="number" min={0} max={100} step="0.1" value={cfg.risk.risk_per_trade_pct || ""}
                 onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, risk_per_trade_pct: e.target.value ? Number(e.target.value) : null } })}
                 style={{ width: "100%" }} placeholder="Fixed qty if empty" />
@@ -274,6 +274,7 @@ function ConfigEditor() {
                 <input type="checkbox" checked={cfg.risk.kill_switch}
                   onChange={(e) => setCfg({ ...cfg, risk: { ...cfg.risk, kill_switch: e.target.checked } })} />
                 Kill switch engaged
+                <FieldHelp text="Emergency stop. When checked, the bot will not place any new trades regardless of market signals. Use this if something looks wrong and you need to halt immediately without stopping the bot entirely." />
               </label>
             </div>
           </div>
@@ -283,7 +284,7 @@ function ConfigEditor() {
           <h2 style={{ marginTop: 0 }}>Broker / adapter</h2>
           <div className="form-row">
             <div>
-              <label>Adapter</label>
+              <label>Adapter <FieldHelp text="Which broker connection to use. 'deriv' connects to your real Deriv account (demo or live). 'paper' is a fully local simulation with no broker connection — good for testing strategies without any real money or API key." /></label>
               <select value={cfg.broker.type}
                 onChange={(e) => {
                   const type = e.target.value;
@@ -306,7 +307,7 @@ function ConfigEditor() {
               </select>
             </div>
             <div>
-              <label>Environment</label>
+              <label>Environment <FieldHelp text="'demo' uses your Deriv demo account — pretend money, real market data, great for testing. 'live' uses your real-money account and is currently restricted on this platform." /></label>
               <select value={cfg.broker.environment}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, environment: e.target.value } })}
                 style={{ width: "100%" }}>
@@ -321,13 +322,13 @@ function ConfigEditor() {
               </select>
             </div>
             <div>
-              <label>Account ID</label>
+              <label>Account ID <FieldHelp text="Your Deriv account number — looks like DOT91022417 or CR123456. Find it in your Deriv dashboard under account settings. Leave blank when using the paper adapter." /></label>
               <input value={cfg.broker.account_id}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, account_id: e.target.value } })}
                 style={{ width: "100%" }} />
             </div>
             <div>
-              <label>Credential reference</label>
+              <label>Credential reference <FieldHelp text="A pointer to your Deriv API token stored securely in the backend — don't paste your actual token here. Use the format 'secret://env/DERIV_API_TOKEN'. Ask your admin if you're unsure what value to use." /></label>
               <input value={cfg.broker.credential_ref}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, credential_ref: e.target.value } })}
                 placeholder="secret://..." style={{ width: "100%" }}
@@ -339,7 +340,7 @@ function ConfigEditor() {
               </p>
             </div>
             <div>
-              <label>Symbol namespace</label>
+              <label>Symbol namespace <FieldHelp text="Tells the bot which set of market symbols to use. 'deriv' for real Deriv markets (Volatility indices, forex pairs). 'paper' for simulated symbols used in paper trading mode. This is set automatically when you change the adapter." /></label>
               <select value={cfg.broker.symbol_namespace}
                 onChange={(e) => setCfg({ ...cfg, broker: { ...cfg.broker, symbol_namespace: e.target.value } })}
                 style={{ width: "100%" }}>
@@ -483,6 +484,43 @@ function SymbolPicker({ selected, onChange, namespace }: {
         </div>
       )}
     </div>
+  );
+}
+
+function FieldHelp({ text }: { text: string }) {
+  const [show, setShow] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  return (
+    <span style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+      <span
+        ref={ref}
+        onMouseEnter={() => setShow(true)}
+        onMouseLeave={() => setShow(false)}
+        style={{ cursor: "help", color: "#94a3b8", fontSize: 13, marginLeft: 5, lineHeight: 1, userSelect: "none" }}
+        aria-label={text}
+      >ⓘ</span>
+      {show && (
+        <span style={{
+          position: "absolute",
+          bottom: "calc(100% + 6px)",
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#1e293b",
+          color: "#f1f5f9",
+          padding: "8px 12px",
+          borderRadius: 6,
+          fontSize: 12,
+          lineHeight: 1.55,
+          width: 240,
+          zIndex: 1000,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          pointerEvents: "none",
+          whiteSpace: "normal",
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
   );
 }
 
