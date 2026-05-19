@@ -43,9 +43,6 @@ class TrendV1:
         "cooldown_ticks": 10,
     }
 
-    def __init__(self) -> None:
-        self._ticks_since_trade: dict[str, int] = {}
-
     def debug_state(self, ctx: StrategyContext) -> dict:
         """Return current indicator values and signal reasoning for the debug panel."""
         params = ctx.params
@@ -83,11 +80,14 @@ class TrendV1:
         crossed_up = (fast_prev or 0) <= (slow_prev or 0) and (fast_now or 0) > (slow_now or 0)
         crossed_down = (fast_prev or 0) >= (slow_prev or 0) and (fast_now or 0) < (slow_now or 0)
 
-        ticks = self._ticks_since_trade.get(ctx.symbol, cooldown_ticks)
-        cooldown_remaining = max(0, cooldown_ticks - ticks)
+        if ctx.last_trade_at_ms:
+            elapsed_ms = now_epoch_ms() - ctx.last_trade_at_ms
+            cooldown_remaining = max(0, cooldown_ticks - int(elapsed_ms / 1000))
+        else:
+            cooldown_remaining = 0
 
         if cooldown_remaining > 0:
-            status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick{'s' if cooldown_remaining != 1 else ''} remaining"
+            status, label = "cooldown", f"Cooldown — {cooldown_remaining}s remaining"
             detail = "Recent signal fired; waiting before next entry."
         elif crossed_up and spread_pct >= min_cross_pct:
             status, label = "signal_buy", "BUY signal"
@@ -155,12 +155,6 @@ class TrendV1:
         crossed_up = fast_prev <= slow_prev and fast_now > slow_now  # type: ignore[operator]
         crossed_down = fast_prev >= slow_prev and fast_now < slow_now  # type: ignore[operator]
 
-        # Cooldown check
-        ticks = self._ticks_since_trade.get(ctx.symbol, cooldown_ticks)
-        self._ticks_since_trade[ctx.symbol] = ticks + 1
-        if ticks < cooldown_ticks:
-            return []
-
         # Signal strength filter: only act when the spread between fast and
         # slow SMA is at least min_cross_pct % of the slow SMA value.
         if slow_now and slow_now != 0:  # type: ignore[redundant-expr]
@@ -177,7 +171,6 @@ class TrendV1:
         if side is None:
             return []
 
-        self._ticks_since_trade[ctx.symbol] = 0
         return [self._intent(ctx, side, sizing)]
 
     @staticmethod

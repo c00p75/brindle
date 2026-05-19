@@ -61,9 +61,6 @@ class VolBreakoutV1:
         "cooldown_ticks": 5,
     }
 
-    def __init__(self) -> None:
-        self._cooldown: dict[str, int] = {}
-
     def _compute(self, ctx: StrategyContext, params: dict):
         atr_n = int(params.get("atr_period", 14))
         bars = [b for b in ctx.bars if b.symbol == ctx.symbol]
@@ -85,7 +82,11 @@ class VolBreakoutV1:
         mult = float(params.get("expansion_mult", 2.0))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
         c = self._compute(ctx, params)
-        cooldown_remaining = max(0, cooldown_ticks - self._cooldown.get(ctx.symbol, cooldown_ticks))
+        if ctx.last_trade_at_ms:
+            elapsed_ms = now_epoch_ms() - ctx.last_trade_at_ms
+            cooldown_remaining = max(0, cooldown_ticks - int(elapsed_ms / 1000))
+        else:
+            cooldown_remaining = 0
 
         if c is None:
             bars = [b for b in ctx.bars if b.symbol == ctx.symbol]
@@ -145,14 +146,9 @@ class VolBreakoutV1:
         if c is None:
             return []
         _, _, ratio, bias, _ = c
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        self._cooldown[ctx.symbol] = ticks + 1
-        if ticks < cooldown_ticks:
-            return []
         if ratio < mult or bias == 0:
             return []
         side = Side.BUY if bias > 0 else Side.SELL
-        self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id, strategy_id=ctx.strategy_id,
             client_order_id=new_id("coid"), symbol=ctx.symbol,

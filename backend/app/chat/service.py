@@ -42,6 +42,7 @@ IDEA → BACKTEST WORKFLOW (use this whenever the user describes a trading idea)
         - "grid / accumulate at levels" → `grid_v1`
         - "DCA / dollar-cost average" → `dca_v1`
         - "Deriv binary contracts / call-put with RSI+SMA" → `deriv_v1`
+        - "Deriv binary contracts / RSI+Bollinger confluence / mean-reversion" → `deriv_v2`
         - "market making / fade deviations from mid" → `mm_v1`
     3. Call `run_backtest` with data_source='deriv' and 300-500 bars. Fall back to 'synthetic' only if Deriv credentials are missing.
     4. Report metrics, then: "Backtest performance is not a guarantee of live performance — paper-trade for at least a few weeks before any real-money commitment."

@@ -201,8 +201,9 @@ def run_backtest(manifest: BacktestManifest, output_dir: Path | None = None) -> 
     max_dd = 0.0
     for v in pnl_curve:
         peak = max(peak, v)
-        dd = (peak - v) / (abs(peak) + 1e-9) * 100
-        max_dd = max(max_dd, dd)
+        if peak > 0:
+            dd = max(0.0, (peak - v) / peak * 100)
+            max_dd = max(max_dd, dd)
 
     # Sharpe (annualised, assuming 1 bar = 1 minute, 252 trading days × 390 min)
     if len(order_pnls) > 1:

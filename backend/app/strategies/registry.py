@@ -7,16 +7,12 @@ from pathlib import Path
 
 from app.strategies.base import Strategy
 from app.strategies.bollinger import BollingerV1
-from app.strategies.dca import DcaV1
 from app.strategies.deriv import DerivV1
-from app.strategies.grid import GridV1
+from app.strategies.deriv_v2 import DerivV2
 from app.strategies.grid_v2 import GridV2
 from app.strategies.macd import MacdV1
-from app.strategies.market_making import MarketMakingV1
-from app.strategies.orb import OrbV1
 from app.strategies.range import RangeV1
 from app.strategies.regime import RegimeV1
-from app.strategies.scalp import ScalpV1
 from app.strategies.trend import TrendV1
 from app.strategies.vol_breakout import VolBreakoutV1
 
@@ -25,17 +21,13 @@ log = logging.getLogger("strategies")
 STRATEGY_REGISTRY: dict[str, type[Strategy]] = {
     "trend_v1": TrendV1,
     "deriv_v1": DerivV1,
+    "deriv_v2": DerivV2,
     "bollinger_v1": BollingerV1,
     "macd_v1": MacdV1,
     "regime_v1": RegimeV1,
-    "grid_v1": GridV1,
     "grid_v2": GridV2,
-    "dca_v1": DcaV1,
-    "orb_v1": OrbV1,
     "vol_breakout_v1": VolBreakoutV1,
-    "scalp_v1": ScalpV1,
     "range_v1": RangeV1,
-    "mm_v1": MarketMakingV1,
 }
 
 

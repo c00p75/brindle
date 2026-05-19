@@ -22,7 +22,7 @@ Mechanics:
 
 Params:
   channel_period:   int   (default 50)
-  tolerance_pct:    float (default 0.1) — how close to a level counts as "at" it
+  tolerance_pct:    float (default 10.0) — how close to a level counts as "at" it, as % of range
   breakout_buffer:  float (default 0.005) — % outside the channel before refresh
   qty:              float (default 1000)
   cooldown_ticks:   int   (default 5)
@@ -51,7 +51,7 @@ class RangeV1:
 
     PARAM_SCHEMA: dict[str, object] = {
         "channel_period": 50,
-        "tolerance_pct": 0.1,
+        "tolerance_pct": 10.0,
         "breakout_buffer": 0.005,
         "qty": 1000.0,
         "cooldown_ticks": 5,
@@ -94,7 +94,7 @@ class RangeV1:
     def debug_state(self, ctx: StrategyContext) -> dict:
         params = ctx.params
         period = int(params.get("channel_period", 50))
-        tolerance = float(params.get("tolerance_pct", 0.1))
+        tolerance = float(params.get("tolerance_pct", 10.0))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))
         breakout_buf = float(params.get("breakout_buffer", 0.005))
         st = self._maybe_relock(ctx, period, breakout_buf)
@@ -112,7 +112,7 @@ class RangeV1:
                 },
             }
         rng = st.high - st.low
-        tol_band = rng * tolerance / 100.0  # interpreted as percent (e.g. 0.1 → 0.1% of range)
+        tol_band = rng * tolerance / 100.0  # e.g. 10.0 → 10% of range
         if cooldown_remaining > 0:
             status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick(s)"
             detail = "Recent rotation fired."
@@ -145,7 +145,7 @@ class RangeV1:
 
         params = ctx.params
         period = int(params.get("channel_period", 50))
-        tolerance = float(params.get("tolerance_pct", 0.1))
+        tolerance = float(params.get("tolerance_pct", 10.0))
         breakout_buf = float(params.get("breakout_buffer", 0.005))
         qty = float(params.get("qty", 1000))
         cooldown_ticks = int(params.get("cooldown_ticks", 5))

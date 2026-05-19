@@ -47,9 +47,6 @@ class MacdV1:
         "cooldown_ticks": 8,
     }
 
-    def __init__(self) -> None:
-        self._cooldown: dict[str, int] = {}
-
     def _macd_series(self, closes: list[float], fast: int, slow: int, signal: int):
         fast_ema = _ema(closes, fast)
         slow_ema = _ema(closes, slow)
@@ -106,11 +103,14 @@ class MacdV1:
         crossed_up = macd_prev <= sig_prev and macd_now > sig_now
         crossed_down = macd_prev >= sig_prev and macd_now < sig_now
 
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        cooldown_remaining = max(0, cooldown_ticks - ticks)
+        if ctx.last_trade_at_ms:
+            elapsed_ms = now_epoch_ms() - ctx.last_trade_at_ms
+            cooldown_remaining = max(0, cooldown_ticks - int(elapsed_ms / 1000))
+        else:
+            cooldown_remaining = 0
 
         if cooldown_remaining > 0:
-            status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick(s) remaining"
+            status, label = "cooldown", f"Cooldown — {cooldown_remaining}s remaining"
             detail = "Recent signal fired."
         elif crossed_up:
             status, label = "signal_buy", "BUY (MACD crossed above signal)"
@@ -170,11 +170,6 @@ class MacdV1:
         crossed_up = macd_prev <= sig_prev and macd_now > sig_now
         crossed_down = macd_prev >= sig_prev and macd_now < sig_now
 
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        self._cooldown[ctx.symbol] = ticks + 1
-        if ticks < cooldown_ticks:
-            return []
-
         side: Side | None = None
         if crossed_up:
             side = Side.BUY
@@ -184,7 +179,6 @@ class MacdV1:
         if side is None:
             return []
 
-        self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,

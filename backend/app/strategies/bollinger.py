@@ -45,9 +45,6 @@ class BollingerV1:
         "cooldown_ticks": 5,
     }
 
-    def __init__(self) -> None:
-        self._cooldown: dict[str, int] = {}
-
     def debug_state(self, ctx: StrategyContext) -> dict:
         params = ctx.params
         period = int(params.get("period", 20))
@@ -75,11 +72,14 @@ class BollingerV1:
         upper = sma + num_std * sd
         lower = sma - num_std * sd
         price = closes[-1]
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        cooldown_remaining = max(0, cooldown_ticks - ticks)
+        if ctx.last_trade_at_ms:
+            elapsed_ms = now_epoch_ms() - ctx.last_trade_at_ms
+            cooldown_remaining = max(0, cooldown_ticks - int(elapsed_ms / 1000))
+        else:
+            cooldown_remaining = 0
 
         if cooldown_remaining > 0:
-            status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick(s) remaining"
+            status, label = "cooldown", f"Cooldown — {cooldown_remaining}s remaining"
             detail = "Recent signal fired; waiting before next entry."
         elif price < lower:
             status, label = "signal_buy", "BUY signal (price below lower band)"
@@ -138,11 +138,6 @@ class BollingerV1:
         lower = sma - num_std * sd
         price = closes[-1]
 
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        self._cooldown[ctx.symbol] = ticks + 1
-        if ticks < cooldown_ticks:
-            return []
-
         side: Side | None = None
         if price < lower:
             side = Side.BUY
@@ -152,7 +147,6 @@ class BollingerV1:
         if side is None:
             return []
 
-        self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,

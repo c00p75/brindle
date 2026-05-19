@@ -111,9 +111,6 @@ class RegimeV1:
         "cooldown_ticks": 8,
     }
 
-    def __init__(self) -> None:
-        self._cooldown: dict[str, int] = {}
-
     def debug_state(self, ctx: StrategyContext) -> dict:
         params = ctx.params
         fast_n = int(params.get("fast", 5))
@@ -145,11 +142,14 @@ class RegimeV1:
         adx_series = _adx_series(highs, lows, closes, adx_n)
         adx_now = adx_series[-1] if adx_series else 0.0
 
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        cooldown_remaining = max(0, cooldown_ticks - ticks)
+        if ctx.last_trade_at_ms:
+            elapsed_ms = now_epoch_ms() - ctx.last_trade_at_ms
+            cooldown_remaining = max(0, cooldown_ticks - int(elapsed_ms / 1000))
+        else:
+            cooldown_remaining = 0
 
         if cooldown_remaining > 0:
-            status, label = "cooldown", f"Cooldown — {cooldown_remaining} tick(s)"
+            status, label = "cooldown", f"Cooldown — {cooldown_remaining}s remaining"
             detail = "Recent signal fired."
         elif adx_now < min_adx:
             status, label = "watching", f"Ranging (ADX {adx_now:.1f} < {min_adx})"
@@ -214,11 +214,6 @@ class RegimeV1:
             return []
         adx_now = adx_series[-1]
 
-        ticks = self._cooldown.get(ctx.symbol, cooldown_ticks)
-        self._cooldown[ctx.symbol] = ticks + 1
-        if ticks < cooldown_ticks:
-            return []
-
         # Regime gate — only trade when market is trending
         if adx_now < min_adx:
             return []
@@ -235,7 +230,6 @@ class RegimeV1:
         if side is None:
             return []
 
-        self._cooldown[ctx.symbol] = 0
         return [OrderIntent(
             bot_id=ctx.bot_id,
             strategy_id=ctx.strategy_id,
