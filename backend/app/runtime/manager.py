@@ -199,7 +199,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                 if source.is_stale(symbol):
                     if symbol not in _stale_alerted:
                         emit_alert(
-                            severity=Severity.WARNING,
+                            severity=Severity.INFO,
                             source="runtime",
                             message=f"market data stale for {symbol} — skipping execution",
                             bot_id=bot.id,
@@ -286,7 +286,7 @@ async def _run_bot_loop(bot: Bot, cfg: BotConfig) -> None:
                         else:
                             # Adapter/Broker rejection (e.g. invalid duration, stake too low)
                             emit_alert(
-                                severity=Severity.WARNING,
+                                severity=Severity.INFO,
                                 source="runtime",
                                 message=f"order rejected by broker: {result.reason}",
                                 bot_id=bot.id,
