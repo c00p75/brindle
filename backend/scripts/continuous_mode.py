@@ -4,7 +4,7 @@ Targets every bot whose name contains "Tournament" (case-insensitive) that is
 not archived.
 
 What changes:
-  allocation          → 100 000  (large virtual budget; stakes stay ≤$5 via
+  allocation          → 100 000  (large virtual budget; stakes stay ≤$1 via
                                    max_stake — allocation just controls sizing mode)
   max_drawdown_pct    = 100      (only fires if full $100k is lost — never)
   max_daily_loss      = 100 000  (disabled in practice)
@@ -13,7 +13,7 @@ What changes:
   max_total_exposure    = 5 000
   max_open_orders       = 5
   risk_per_trade_pct    = 1.0    (1% of effective balance)
-  max_stake             = 5.0    (hard $5/trade cap so sizing stays small)
+  max_stake             = 1.0    (hard $1/trade cap so sizing stays small)
 
 Lifecycle per bot:
   1. Update allocation field in the DB.
@@ -58,7 +58,7 @@ CONTINUOUS_RISK = RiskLimits(
     max_open_orders=5,
     max_consecutive_losses=0,
     risk_per_trade_pct=1.0,
-    max_stake=5.0,
+    max_stake=1.0,
 )
 
 
@@ -149,7 +149,7 @@ async def main() -> None:
         await apply_continuous(b.id, b.name)
 
     print("\nDone — all Tournament bots are now in continuous trading mode.")
-    print(f"Allocation set to ${LARGE_ALLOCATION:,.0f} (virtual; max $5/trade via max_stake).")
+    print(f"Allocation set to ${LARGE_ALLOCATION:,.0f} (virtual; max $1/trade via max_stake).")
 
 
 if __name__ == "__main__":
