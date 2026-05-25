@@ -38,11 +38,12 @@ def compute_stake(ctx: StrategyContext, default_qty: float) -> tuple[float | Non
         if max_stake is not None:
             stake = min(stake, max_stake)
 
-        # Hard safety cap: stake can never exceed 10% of base allocation,
-        # regardless of effective_balance. Prevents runaway sizing if P&L
-        # accounting ever over-reports gains.
+        # Hard safety cap: when max_stake is not explicitly set, cap at the
+        # smaller of $10 or 1% of allocation. Prevents runaway sizing on
+        # large virtual allocations (e.g. $100k continuous-mode bots).
         if ctx.allocation is not None:
-            stake = min(stake, ctx.allocation * 0.10)
+            fallback_cap = min(10.0, ctx.allocation * 0.01)
+            stake = min(stake, fallback_cap)
 
         stake = max(stake, 0.35)  # Deriv minimum
         return None, stake
