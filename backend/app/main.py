@@ -76,7 +76,7 @@ async def _health_monitor() -> None:
     while True:
         try:
             mgr = get_runtime_manager()
-            actual_ids: set[str] = mgr.running_ids()
+            actual_ids: set[str] = set(mgr.running_ids())
 
             expected_ids: set[str] = {
                 bot.id for bot in list_bots() if bot.state == BotState.RUNNING
